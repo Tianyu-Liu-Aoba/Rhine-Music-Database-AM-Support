@@ -18,6 +18,8 @@ class AppleQueue : public QObject {
     QJsonArray items() const;
     // 迷你播放器显示的播放时间（毫秒），作为歌词偏移的参考时钟；读不到返回 -1。
     double positionMs(double expected = -1) const;
+    // 切歌后作废：下次读取立即重新枚举，而不是继续用上一份列表。
+    void clear();
 
   signals:
     void changed();

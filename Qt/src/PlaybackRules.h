@@ -1,4 +1,5 @@
 #pragma once
+#include <QCryptographicHash>
 #include <QJsonArray>
 #include <QRegularExpression>
 #include <QString>
@@ -10,6 +11,15 @@
  * 歌词候选只按艺人+时长放行）都在这两个函数里。
  */
 namespace PlaybackRules {
+
+// 镜像曲目的稳定 id：必须逐曲唯一，否则歌词/队列缓存会跨曲复用（真实 bug）。
+inline QString mirrorTrackId(const QString &title, const QString &artist) {
+    const auto payload = (title + QLatin1Char('|') + artist).toUtf8();
+    return QStringLiteral("apple-") +
+           QString::fromLatin1(QCryptographicHash::hash(payload, QCryptographicHash::Sha1)
+                                   .toHex()
+                                   .left(12));
+}
 
 // 播放条发出的动作名与系统会话动作名并不一致：prev 才是按钮，previous 是会话。
 inline QString sessionAction(QString action) {

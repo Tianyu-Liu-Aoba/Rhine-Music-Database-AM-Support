@@ -1,4 +1,6 @@
 #include "MusicPlayer.h"
+#include "PlaybackRules.h"
+#include <QCryptographicHash>
 #include <QFileInfo>
 #include <QUrl>
 #include <QJsonDocument>
@@ -832,7 +834,8 @@ void MusicPlayer::syncMirrorTrack() {
     }
     QJsonObject item;
     item["kind"] = QStringLiteral("song");
-    item["id"] = QStringLiteral("apple-media-session");
+    // 歌词与队列缓存都以 provider:id 为键；id 必须逐曲唯一，否则会复用上一首的缓存。
+    item["id"] = PlaybackRules::mirrorTrackId(title, artist);
     // 3D 场景按 key 做纹理准入；没有稳定 key 时封面预处理会被跳过。
     item["key"] = QStringLiteral("apple:") + title + QLatin1Char('|') + artist;
     item["title"] = title;
@@ -853,6 +856,8 @@ void MusicPlayer::syncMirrorTrack() {
     // 换歌先清空旧歌词，避免上一首的内容残留在页面上。
     lyrics.clear();
     lyrics.loadDirect(current);
+    // 队列缓存也要作废：主动切歌时苹果的列表已经变了，不能继续显示上一份。
+    m_host->invalidateAppleQueue();
     emit changed();
 }
 

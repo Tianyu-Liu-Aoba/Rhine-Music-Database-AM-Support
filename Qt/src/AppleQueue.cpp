@@ -305,8 +305,14 @@ QJsonArray AppleQueue::items() const {
     return m_impl->items;
 }
 
-double AppleQueue::positionMs(double expected) const {
+void AppleQueue::clear() {
     QMutexLocker lock(&m_impl->mutex);
+    m_impl->items = {};
+    m_impl->times.clear();
+    m_impl->positionMs = -1;
+}
+
+double AppleQueue::positionMs(double expected) const {    QMutexLocker lock(&m_impl->mutex);
     if (m_impl->times.isEmpty()) {
         return m_impl->positionMs;
     }

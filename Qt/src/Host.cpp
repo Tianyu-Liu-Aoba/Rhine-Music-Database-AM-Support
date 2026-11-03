@@ -1356,6 +1356,14 @@ QJsonObject Host::mirrorLyricsDocument(QString title, QString artist) const {
                        {"offsetMs", 0.0},
                        {"source", QStringLiteral("netease")}};
 }
+/** 切歌时调用：立刻作废队列缓存，下一次读取不走 2 秒限频。 */
+void Host::invalidateAppleQueue() {
+    lastQueueRefresh = 0;
+    if (appleQueueReader) {
+        appleQueueReader->clear();
+    }
+}
+
 /** Apple 播放器显示的播放时间（毫秒），用作歌词偏移的参考时钟。 */
 double Host::applePositionMs(double expected) {
     if (!appleQueueReader || provider != "apple") {

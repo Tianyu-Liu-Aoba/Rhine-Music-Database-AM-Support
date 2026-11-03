@@ -93,6 +93,15 @@ int main(int argc, char **argv) {
                                        QStringLiteral("Harvest"),
                                        artists(QStringLiteral("B"))),
           "a matching title by another artist is rejected");
+
+    // 镜像曲目 id 必须逐曲唯一，否则歌词缓存会跨曲复用（真实 bug）。
+    check(PlaybackRules::mirrorTrackId(QStringLiteral("Harvest"), QStringLiteral("A")) !=
+              PlaybackRules::mirrorTrackId(QStringLiteral("Ghost"), QStringLiteral("A")),
+          "mirror track ids differ between songs");
+    check(PlaybackRules::mirrorTrackId(QStringLiteral("Harvest"), QStringLiteral("A")) ==
+              PlaybackRules::mirrorTrackId(QStringLiteral("Harvest"), QStringLiteral("A")),
+          "mirror track id is stable for the same song");
+
     check(song["id"] == "1890100604" && song["kind"] == "song" && song["provider"] == "apple",
           "song keeps a decimal id and the apple provider");
     check(song["key"] == "apple:song:1890100604", "song key is provider-scoped");
