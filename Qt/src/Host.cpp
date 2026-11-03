@@ -1006,13 +1006,59 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
                     handle(QJsonDocument::fromJson(reply->readAll()).object());
                 });
     };
+    // 多源并行：谁先给出可信结果就用谁，减少等待。
+    auto settled = std::make_shared<bool>(false);
+    const auto finish = [this, key, settled](const QString &lrc, const QString &translated) {
+        if (*settled || lrc.isEmpty() || mirrorLyricKey != key) {
+            return;
+        }
+        *settled = true;
+        mirrorLyricDocument = QJsonObject{{"lrc", lrc}, {"translated", translated}};
+        emit invalidated();
+    };
+    // 第二来源：LRCLIB（公开歌词库，返回带时间轴的英文/日文歌词）。
+    QUrl lrclib(QStringLiteral("https://lrclib.net/api/search"));
+    QUrlQuery lrclibQuery;
+    lrclibQuery.addQueryItem(QStringLiteral("track_name"), title);
+    if (!artist.isEmpty()) {
+        lrclibQuery.addQueryItem(QStringLiteral("artist_name"), artist);
+    }
+    lrclib.setQuery(lrclibQuery);
+    QNetworkRequest lrclibRequest(lrclib);
+    lrclibRequest.setHeader(
+        QNetworkRequest::UserAgentHeader,
+        QStringLiteral("RhineMusicDatabase/1.0 (https://github.com/Tianyu-Liu-Aoba/"
+                       "Rhine-Music-Database-AM-Support)"));
+    lrclibRequest.setTransferTimeout(6000);
+    auto *lrclibReply = lyricNet.get(lrclibRequest);
+    connect(lrclibReply, &QNetworkReply::finished, this, [lrclibReply, lrclibRequest, finish, title] {
+        lrclibReply->deleteLater();
+        if (lrclibReply->error() != QNetworkReply::NoError) {
+            return;
+        }
+        const auto results = QJsonDocument::fromJson(lrclibReply->readAll()).array();
+        for (const auto &value : results) {
+            const auto entry = value.toObject();
+            const auto synced = entry.value("syncedLyrics").toString();
+            if (synced.isEmpty()) {
+                continue;
+            }
+            // 只接受标题一致的条目，避免同名不同曲串台。
+            const auto candidate = entry.value("trackName").toString().toLower().trimmed();
+            if (!candidate.isEmpty() && candidate != title.toLower().trimmed()) {
+                continue;
+            }
+            finish(synced, QString());
+            return;
+        }
+    });
     QUrl search(QStringLiteral("https://music.163.com/api/search/get"));
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("s"), term);
     query.addQueryItem(QStringLiteral("type"), QStringLiteral("1"));
     query.addQueryItem(QStringLiteral("limit"), QStringLiteral("5"));
     search.setQuery(query);
-    send(search, [this, key, term, title, artist, send](QJsonObject body) {
+    send(search, [this, key, term, title, artist, send, finish](QJsonObject body) {
         if (mirrorLyricKey != key) {
             return;
         }
@@ -1086,7 +1132,7 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
         params.addQueryItem(QStringLiteral("lv"), QStringLiteral("1"));
         params.addQueryItem(QStringLiteral("tv"), QStringLiteral("1"));
         lyric.setQuery(params);
-        send(lyric, [this, key, original](QJsonObject payload) {
+        send(lyric, [this, key, original, finish](QJsonObject payload) {
             if (mirrorLyricKey != key) {
                 return;
             }
@@ -1099,9 +1145,7 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
             if (lrc.isEmpty()) {
                 return;
             }
-            mirrorLyricDocument =
-                QJsonObject{{"lrc", lrc}, {"translated", translated}, {"title", original}};
-            emit invalidated();
+            finish(lrc, translated);
         });
     });
 }
