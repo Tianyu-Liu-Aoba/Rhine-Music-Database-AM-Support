@@ -48,6 +48,8 @@ class LyricsController : public QObject {
   private:
     // 镜像曲目强制本进程解析，跳过后台服务的歌词转发。
     bool m_forceLocal = false;
+    // 镜像模式下偏移量也必须本地生效，不能转发给后台服务。
+    bool m_mirrorMode = false;
     struct Load {
         quint64 generation = 0;
         QJsonObject track;

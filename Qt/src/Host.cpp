@@ -929,8 +929,9 @@ QJsonObject Host::mediaSessionState() const {
 }
 /** 会话封面按曲目缓存；同一首歌不会每帧重新解码。 */
 QString Host::mediaSessionCoverKey() {
-    // Apple 目录校验通过的高清封面优先。
-    if (!appleArtKey.isEmpty() && !sessionCover.isNull()) {
+    // Apple 目录校验通过的高清封面优先，但只在当前帧确实有图时才接管，
+    // 否则退回会话封面——避免校验失败时把唱片弄成空白。
+    if (!appleArtKey.isEmpty() && !sessionCover.isNull() && sessionCoverKey == appleArtKey) {
         return appleArtKey;
     }
     // 优先使用 Now Playing 提供的高清封面。

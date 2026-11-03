@@ -241,6 +241,8 @@ void LyricsController::selectLocalSource(const QJsonObject &track, const QString
 
 /** 切歌先清空显示，再读精确 ID；缺词时只接受同名、同歌手、同版本的录音补缺。 */
 void LyricsController::load(const QJsonObject &track, bool retry) {
+    // 非镜像曲目走常规流程；镜像标记只对镜像曲目有效。
+    m_mirrorMode = m_forceLocal;
     if (!m_forceLocal && remoteCommand("load", {{"track", track}, {"retry", retry}})) {
         return;
     }
@@ -509,7 +511,8 @@ void LyricsController::sync(double position) {
 }
 
 void LyricsController::adjustOffset(double deltaMs) {
-    if (remoteCommand("offset", {{"value", deltaMs}})) {
+    // 镜像模式的歌词只存在于面板进程，转发给后台服务不会生效。
+    if (!m_mirrorMode && remoteCommand("offset", {{"value", deltaMs}})) {
         return;
     }
     offsetMs = std::clamp(offsetMs + deltaMs, -10000., 10000.);
@@ -630,6 +633,7 @@ void LyricsController::loadDocument(const QJsonObject &track, const QJsonObject 
     if (document.value("lines").toArray().isEmpty()) {
         return;
     }
+    m_mirrorMode = true;
     currentKey = trackKey(track);
     positionMs = 0;
     offsetMs = m_globalOffsetMs;
