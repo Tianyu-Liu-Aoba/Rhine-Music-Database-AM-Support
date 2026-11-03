@@ -163,6 +163,11 @@ void MusicPlayer::setQuality(const QString &value) {
 MusicPlayer::MusicPlayer(Host *host, MusicApi *api, QObject *parent)
     : QObject(parent), lyrics(host), queue(api), m_host(host), m_api(api) {
     state = {{"playing", false}, {"position", 0}, {"duration", 0}, {"volume", 0.7}, {"seekable", false}};
+    // 每秒对齐一次系统会话：Apple Music 换歌时虚拟曲目、歌词随之更新。
+    auto *mirrorTimer = new QTimer(this);
+    mirrorTimer->setInterval(1000);
+    connect(mirrorTimer, &QTimer::timeout, this, &MusicPlayer::syncMirrorTrack);
+    mirrorTimer->start();
     connect(&queue, &PlaybackQueue::changed, this, &MusicPlayer::changed);
     if (auto connection = m_host->playbackConnection()) {
         connect(connection, &PlaybackConnection::snapshotChanged, this, &MusicPlayer::applyPlaybackSnapshot,
@@ -755,6 +760,41 @@ void MusicPlayer::applyPlaybackSnapshot() {
 }
 
 /** 会话存档属于播放核心；后台服务不链接 MusicSession.cpp，入口必须留在本文件。 */
+void MusicPlayer::syncMirrorTrack() {
+    const bool mirroring = current.value("mirror").toBool();
+    const auto session = m_api->provider == "apple" ? m_host->mediaSessionState() : QJsonObject{};
+    const auto title = session.value("title").toString();
+    if (!session.value("hasSession").toBool() || title.isEmpty()) {
+        if (mirroring) {
+            current = {};
+            lyrics.clear();
+            status.clear();
+            emit changed();
+        }
+        return;
+    }
+    if (state["playing"].toBool() && !mirroring) {
+        return;
+    }
+    if (mirroring && current.value("title").toString() == title) {
+        return;
+    }
+    QJsonObject item;
+    item["kind"] = QStringLiteral("song");
+    item["id"] = QStringLiteral("apple-media-session");
+    item["title"] = title;
+    item["artist"] = session.value("artist").toString();
+    item["album"] = session.value("album").toString();
+    item["duration"] = session.value("duration").toDouble();
+    item["cover"] = m_host->mediaSessionCoverKey();
+    item["provider"] = QStringLiteral("apple");
+    item["mirror"] = true;
+    current = item;
+    status = QStringLiteral("Apple Music");
+    lyrics.load(current);
+    emit changed();
+}
+
 QJsonObject MusicPlayer::sessionState() const {
     const auto live = m_host->mediaState();
     const auto position =

@@ -26,8 +26,12 @@ bool NativeHud::mirroringSystemSession() const {
                  qPrintable(player.current.value("title").toString()),
                  qPrintable(session.value("title").toString()));
     }
-    if (playing) {
+    if (playing && !player.current.value("mirror").toBool()) {
         return false;
+    }
+    // 镜像曲目由 MusicPlayer 维护，此时播放条直接跟随系统会话。
+    if (player.current.value("mirror").toBool()) {
+        return trace("session", session.value("hasSession").toBool() && hasTitle);
     }
     if (player.current.value("title").toString().isEmpty()) {
         return trace("session", session.value("hasSession").toBool() && hasTitle);
