@@ -311,6 +311,11 @@ void AppleMusic::lyrics(QJsonObject track, Done done) {
         const auto extra = m_lyricProvider();
         const auto document =
             lyricsDocumentFromLrc(extra.value("lrc").toString(), extra.value("translated").toString());
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            qWarning("apple-lyrics: provider lrc=%lld docLines=%lld",
+                     qlonglong(extra.value("lrc").toString().size()),
+                     qlonglong(document.value("lines").toArray().size()));
+        }
         if (!document.isEmpty()) {
             done(document, {});
             return;

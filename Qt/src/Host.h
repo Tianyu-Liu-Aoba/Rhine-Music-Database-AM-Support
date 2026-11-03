@@ -56,6 +56,7 @@ class Host : public QObject {
     // Apple 常把日文标题改成罗马音：用网易云公共搜索反查原文，并取带翻译的歌词。
     Q_INVOKABLE void resolveMirrorLyrics(QString title, QString artist, double durationMs = 0);
     Q_INVOKABLE QJsonObject mirrorLyrics() const;
+    Q_INVOKABLE QJsonObject mirrorLyricsDocument() const;
     Q_INVOKABLE bool mediaLoad(QString url, bool alternative = false, double position = 0,
                                bool paused = false);
     Q_INVOKABLE void mediaControl(QString action, double value = 0);

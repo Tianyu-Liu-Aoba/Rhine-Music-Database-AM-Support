@@ -13,6 +13,8 @@ class LyricsController : public QObject {
     void load(const QJsonObject &track, bool retry = false);
     // 镜像曲目只在面板内加载：不转发给后台播放服务（那边的播放器看不到系统会话）。
     void loadDirect(const QJsonObject &track, bool retry = false);
+    // 已经有解析好的文档时直接接收（镜像曲目的歌词由面板自己准备）。
+    void loadDocument(const QJsonObject &track, const QJsonObject &document);
     void matchCover(const QJsonObject &track);
     void selectLocalSource(const QJsonObject &track, const QString &source);
     QString localSource = "auto";
@@ -63,7 +65,7 @@ class LyricsController : public QObject {
     };
     using Pending = std::shared_ptr<Load>;
     Host *m_host;
-    std::array<std::unique_ptr<MusicApi>, 4> m_apis;
+    std::array<std::unique_ptr<MusicApi>, 5> m_apis;
     quint64 m_generation = 0;
     double m_globalOffsetMs = 0;
     qint64 m_neteaseLyricsBlockedUntil = 0;

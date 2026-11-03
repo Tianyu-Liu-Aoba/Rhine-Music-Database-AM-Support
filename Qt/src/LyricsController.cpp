@@ -10,7 +10,7 @@
 #include <cmath>
 
 namespace {
-const QStringList PROVIDERS{"netease", "qq", "kugou", "siren"};
+const QStringList PROVIDERS{"netease", "qq", "kugou", "siren", "apple"};
 constexpr int CACHE_LIMIT = 12;
 
 QString comparable(QString value) {
@@ -624,6 +624,16 @@ void LyricsController::loadLocal(const QJsonObject &track, const Pending &pendin
                 supplement(pending);
             }
         });
+}
+
+void LyricsController::loadDocument(const QJsonObject &track, const QJsonObject &document) {
+    if (document.value("lines").toArray().isEmpty()) {
+        return;
+    }
+    currentKey = trackKey(track);
+    positionMs = 0;
+    offsetMs = m_globalOffsetMs;
+    accept(document, track);
 }
 
 /** 镜像曲目没有下发到后台服务，歌词必须在本进程内直接解析。 */

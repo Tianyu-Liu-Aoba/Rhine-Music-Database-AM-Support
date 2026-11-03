@@ -1074,6 +1074,62 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
 QJsonObject Host::mirrorLyrics() const {
     return mirrorLyricDocument;
 }
+/** 把反查到的 LRC 转成面板歌词文档；翻译按时间戳并入同一行。 */
+QJsonObject Host::mirrorLyricsDocument() const {
+    const auto lrc = mirrorLyricDocument.value("lrc").toString();
+    if (lrc.isEmpty()) {
+        return {};
+    }
+    const auto parse = [](const QString &text) {
+        static const QRegularExpression stamp(
+            QStringLiteral("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?\\]"));
+        QMap<qint64, QString> entries;
+        for (const auto &raw : text.split(QLatin1Char('\n'))) {
+            const auto match = stamp.match(raw);
+            if (!match.hasMatch()) {
+                continue;
+            }
+            auto fraction = 0;
+            const auto digits = match.captured(3);
+            if (!digits.isEmpty()) {
+                fraction = digits.toInt();
+                if (digits.size() == 1) {
+                    fraction *= 100;
+                } else if (digits.size() == 2) {
+                    fraction *= 10;
+                }
+            }
+            const auto ms =
+                (match.captured(1).toInt() * 60 + match.captured(2).toInt()) * 1000 + fraction;
+            const auto line = raw.mid(match.capturedEnd()).trimmed();
+            if (!line.isEmpty()) {
+                entries.insert(ms, line);
+            }
+        }
+        return entries;
+    };
+    const auto original = parse(lrc);
+    if (original.isEmpty()) {
+        return {};
+    }
+    const auto translation = parse(mirrorLyricDocument.value("translated").toString());
+    QJsonArray lines;
+    QStringList plain;
+    for (auto it = original.begin(); it != original.end(); ++it) {
+        auto text = it.value();
+        plain.append(text);
+        if (translation.contains(it.key())) {
+            text += QLatin1Char('\n') + translation.value(it.key());
+        }
+        lines.append(QJsonObject{{"startMs", double(it.key())}, {"text", text}});
+    }
+    return QJsonObject{{"version", 1},
+                       {"timing", QStringLiteral("line")},
+                       {"lines", lines},
+                       {"plainText", plain.join(QLatin1Char('\n'))},
+                       {"offsetMs", 0.0},
+                       {"source", QStringLiteral("netease")}};
+}
 /** 队列由 Apple Music 维护，这里只做限频读取（2 秒一次）。 */
 QJsonArray Host::appleQueue() {
     if (!appleQueueReader || provider != "apple") {

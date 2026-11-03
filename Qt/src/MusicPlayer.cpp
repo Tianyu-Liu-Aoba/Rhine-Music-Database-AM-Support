@@ -791,10 +791,11 @@ void MusicPlayer::syncMirrorTrack() {
         title + QLatin1Char('#') + (m_host->mirrorLyrics().isEmpty() ? QStringLiteral("0")
                                                                     : QStringLiteral("1"));
     if (mirroring && current.value("title").toString() == title) {
-        // 歌词通常比换歌晚到：反查结果出现后再补一次。
-        if (lyrics.status == QLatin1String("empty") && m_lyricSignal != signal) {
+        // 反查文档就绪后直接投喂，避免依赖回调时序。
+        const auto document = m_host->mirrorLyricsDocument();
+        if (!document.isEmpty() && m_lyricSignal != signal) {
             m_lyricSignal = signal;
-            lyrics.loadDirect(current, true);
+            lyrics.loadDocument(current, document);
         }
         return;
     }
