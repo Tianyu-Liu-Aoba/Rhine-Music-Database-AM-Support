@@ -913,7 +913,19 @@ QString Host::qr(QString key) {
 QJsonObject Host::mediaSessionState() const {
     // Now Playing 服务字段更全（专辑、高清封面），连不上时退回 SMTC。
     if (nowPlaying && nowPlaying->available()) {
-        return nowPlaying->state();
+        auto state = nowPlaying->state();
+        // Now Playing 的进度是按秒估算的，歌词会逐渐错位；用 SMTC 的毫秒时间轴校正。
+        if (session) {
+            const auto precise = session->snapshot();
+            if (precise.value("hasSession").toBool() &&
+                precise.value("appID").toString().contains(QStringLiteral("AppleMusic"),
+                                                           Qt::CaseInsensitive)) {
+                state["position"] = precise.value("position");
+                state["duration"] = precise.value("duration");
+                state["playing"] = precise.value("playing");
+            }
+        }
+        return state;
     }
     return session ? session->snapshot() : QJsonObject{};
 }
@@ -1000,7 +1012,7 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
     query.addQueryItem(QStringLiteral("type"), QStringLiteral("1"));
     query.addQueryItem(QStringLiteral("limit"), QStringLiteral("5"));
     search.setQuery(query);
-    send(search, [this, key, term, title, send](QJsonObject body) {
+    send(search, [this, key, term, title, artist, send](QJsonObject body) {
         if (mirrorLyricKey != key) {
             return;
         }
@@ -1019,28 +1031,50 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
             return value;
         };
         const auto wantedTitle = normalize(title);
+        const auto wantedArtist = normalize(artist);
         QJsonObject best;
         int bestScore = -1;
         for (const auto &value : songs) {
             const auto candidate = value.toObject();
             const auto candidateTitle = normalize(candidate.value("name").toString());
+            bool titleExact = false;
             auto score = 0;
             if (candidateTitle == wantedTitle) {
+                titleExact = true;
                 score += 4;
             } else if (!candidateTitle.isEmpty() && wantedTitle.startsWith(candidateTitle)) {
+                score += 1;
+            }
+            // 同一位艺人的曲目很多，必须同时看艺人名才不会串到别的歌。
+            bool artistMatch = false;
+            for (const auto &entry : candidate.value("artists").toArray()) {
+                const auto name = normalize(entry.toObject().value("name").toString());
+                if (!name.isEmpty() && !wantedArtist.isEmpty() &&
+                    (name.contains(wantedArtist) || wantedArtist.contains(name))) {
+                    artistMatch = true;
+                    break;
+                }
+            }
+            if (artistMatch) {
                 score += 2;
             }
             const auto duration = candidate.value("duration").toDouble();
+            bool durationClose = false;
             if (mirrorLyricDuration > 0 && duration > 0 &&
                 std::abs(duration - mirrorLyricDuration) < 5000) {
+                durationClose = true;
                 score += 2;
+            }
+            // 只有「标题精确」或「艺人 + 时长吻合」才认为可信，否则宁可不给歌词。
+            if (!titleExact && !(artistMatch && durationClose)) {
+                continue;
             }
             if (score > bestScore) {
                 bestScore = score;
                 best = candidate;
             }
         }
-        if (best.isEmpty() || bestScore < 2) {
+        if (best.isEmpty()) {
             return;
         }
         const auto song = best;

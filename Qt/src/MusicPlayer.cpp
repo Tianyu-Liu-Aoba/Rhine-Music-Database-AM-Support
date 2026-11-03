@@ -163,9 +163,9 @@ void MusicPlayer::setQuality(const QString &value) {
 MusicPlayer::MusicPlayer(Host *host, MusicApi *api, QObject *parent)
     : QObject(parent), lyrics(host), queue(api), m_host(host), m_api(api) {
     state = {{"playing", false}, {"position", 0}, {"duration", 0}, {"volume", 0.7}, {"seekable", false}};
-    // 每秒对齐一次系统会话：Apple Music 换歌时虚拟曲目、歌词随之更新。
+    // 每 250ms 对齐一次系统会话：换歌感知更快，歌词逐行高亮也更贴近实际。
     auto *mirrorTimer = new QTimer(this);
-    mirrorTimer->setInterval(1000);
+    mirrorTimer->setInterval(250);
     connect(mirrorTimer, &QTimer::timeout, this, &MusicPlayer::syncMirrorTrack);
     mirrorTimer->start();
     connect(&queue, &PlaybackQueue::changed, this, &MusicPlayer::changed);
