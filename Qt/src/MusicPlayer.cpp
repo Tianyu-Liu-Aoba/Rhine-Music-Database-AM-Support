@@ -810,8 +810,14 @@ void MusicPlayer::syncMirrorTrack() {
     m_host->resolveMirrorLyrics(title, artist, session.value("duration").toDouble());
     // 用 Apple 播放器显示的播放时间做基准，自动校正歌词偏移。
     const auto reference = m_host->applePositionMs(state["position"].toDouble());
-    if (reference > 0 && std::abs(reference - m_mirrorPosition) > 800) {
-        lyrics.adjustOffset(reference - m_mirrorPosition);
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    // 参考时钟是逐秒显示的，只在偏差明显且未刚校准过时修正，避免来回抖动。
+    if (reference > 0 && now - m_mirrorCalibratedAt > 5000) {
+        const auto diff = reference - m_mirrorPosition;
+        if (diff > 800 && diff < 8000) {
+            m_mirrorCalibratedAt = now;
+            lyrics.adjustOffset(diff);
+        }
     }
     const auto document = m_host->mirrorLyricsDocument(title, artist);
     const auto signal = title + QLatin1Char('#') + (document.isEmpty() ? QStringLiteral("0")

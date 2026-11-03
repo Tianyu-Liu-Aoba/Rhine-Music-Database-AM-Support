@@ -1339,7 +1339,12 @@ QJsonObject Host::mirrorLyricsDocument(QString title, QString artist) const {
             const auto ms =
                 (match.captured(1).toInt() * 60 + match.captured(2).toInt()) * 1000 + fraction;
             const auto line = raw.mid(match.capturedEnd()).trimmed();
-            if (!line.isEmpty()) {
+            // 作词/作曲/编曲等制作信息也带时间戳，不能当成歌词行显示。
+            static const QRegularExpression credits(
+                QStringLiteral("^(作词|作曲|编曲|制作人|录音|混音|母带|演唱|词|曲|lyrics|composed|"
+                               "written|produced|arranged)\\s*[:：]"),
+                QRegularExpression::CaseInsensitiveOption);
+            if (!line.isEmpty() && !credits.match(line).hasMatch()) {
                 entries.insert(ms, line);
             }
         }

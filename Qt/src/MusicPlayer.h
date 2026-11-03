@@ -48,6 +48,7 @@ class MusicPlayer : public QObject {
     double m_mirrorBase = 0;
     qint64 m_mirrorStamp = 0;
     double m_mirrorPosition = 0;
+    qint64 m_mirrorCalibratedAt = 0;
     QJsonObject state;
     bool loading = false;
     bool failed = false;

@@ -260,18 +260,29 @@ void AppleQueue::refresh() {
         return;
     }
     std::thread([this] {
+        // 任何异常都必须复位 busy，否则队列会永久卡在"刷新中"。
+        struct Reset {
+            std::atomic_bool &flag;
+            ~Reset() { flag = false; }
+        } reset{m_impl->busy};
 #ifdef Q_OS_WIN
         if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) {
-            m_impl->busy = false;
             return;
         }
-        const auto items = readQueue();
-        const auto reference = g_referencePositionMs;
-        const auto times = g_referenceTimes;
+        QJsonArray items;
+        double reference = -1;
+        QList<double> times;
+        try {
+            items = readQueue();
+            reference = g_referencePositionMs;
+            times = g_referenceTimes;
+        } catch (...) {
+        }
         CoUninitialize();
 #else
         const QJsonArray items;
         const double reference = -1;
+        const QList<double> times;
 #endif
         bool updated = false;
         {
@@ -283,7 +294,6 @@ void AppleQueue::refresh() {
             m_impl->positionMs = reference;
             m_impl->times = times;
         }
-        m_impl->busy = false;
         if (updated) {
             QMetaObject::invokeMethod(this, [this] { emit changed(); }, Qt::QueuedConnection);
         }
