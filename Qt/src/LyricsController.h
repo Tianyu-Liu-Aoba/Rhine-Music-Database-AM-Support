@@ -11,6 +11,8 @@ class LyricsController : public QObject {
     void clear();
     void clearCache();
     void load(const QJsonObject &track, bool retry = false);
+    // 镜像曲目只在面板内加载：不转发给后台播放服务（那边的播放器看不到系统会话）。
+    void loadDirect(const QJsonObject &track, bool retry = false);
     void matchCover(const QJsonObject &track);
     void selectLocalSource(const QJsonObject &track, const QString &source);
     QString localSource = "auto";
@@ -42,6 +44,8 @@ class LyricsController : public QObject {
     void coverMatched(QString key, QString url);
 
   private:
+    // 镜像曲目强制本进程解析，跳过后台服务的歌词转发。
+    bool m_forceLocal = false;
     struct Load {
         quint64 generation = 0;
         QJsonObject track;

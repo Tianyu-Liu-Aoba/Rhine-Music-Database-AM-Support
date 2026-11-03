@@ -773,6 +773,14 @@ void MusicPlayer::syncMirrorTrack() {
         }
         return;
     }
+    // 歌词滚动与进度显示都读 state，镜像时必须喂系统会话的时间轴。
+    if (mirroring) {
+        state["position"] = session.value("position").toDouble();
+        state["duration"] = session.value("duration").toDouble();
+        state["playing"] = session.value("playing").toBool();
+        state["seekable"] = true;
+        lyrics.sync(state["position"].toDouble());
+    }
     if (state["playing"].toBool() && !mirroring) {
         return;
     }
@@ -780,7 +788,7 @@ void MusicPlayer::syncMirrorTrack() {
         // 本地歌词通常比换歌晚到几百毫秒：同一首只补一次歌词。
         if (lyrics.status == QLatin1String("empty") && m_lyricRetried != title) {
             m_lyricRetried = title;
-            lyrics.load(current, true);
+            lyrics.loadDirect(current, true);
         }
         return;
     }
@@ -797,7 +805,7 @@ void MusicPlayer::syncMirrorTrack() {
     current = item;
     status = QStringLiteral("Apple Music");
     m_lyricRetried = title;
-    lyrics.load(current);
+    lyrics.loadDirect(current);
     emit changed();
 }
 

@@ -241,7 +241,7 @@ void LyricsController::selectLocalSource(const QJsonObject &track, const QString
 
 /** 切歌先清空显示，再读精确 ID；缺词时只接受同名、同歌手、同版本的录音补缺。 */
 void LyricsController::load(const QJsonObject &track, bool retry) {
-    if (remoteCommand("load", {{"track", track}, {"retry", retry}})) {
+    if (!m_forceLocal && remoteCommand("load", {{"track", track}, {"retry", retry}})) {
         return;
     }
     const auto key = trackKey(track);
@@ -624,6 +624,13 @@ void LyricsController::loadLocal(const QJsonObject &track, const Pending &pendin
                 supplement(pending);
             }
         });
+}
+
+/** 镜像曲目没有下发到后台服务，歌词必须在本进程内直接解析。 */
+void LyricsController::loadDirect(const QJsonObject &track, bool retry) {
+    m_forceLocal = true;
+    load(track, retry);
+    m_forceLocal = false;
 }
 
 bool LyricsController::remoteCommand(const QString &method, QJsonObject arguments) {
