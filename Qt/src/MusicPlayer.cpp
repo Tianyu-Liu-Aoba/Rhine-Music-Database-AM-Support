@@ -775,11 +775,21 @@ void MusicPlayer::syncMirrorTrack() {
     }
     // 歌词滚动与进度显示都读 state，镜像时必须喂系统会话的时间轴。
     if (mirroring) {
-        state["position"] = session.value("position").toDouble();
+        // SMTC 只在对齐时刻上报进度，两次上报之间会停住；按流逝时间外推才不会越听越偏。
+        const auto reported = session.value("position").toDouble();
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        if (std::abs(reported - m_mirrorReported) >= 1.0) {
+            m_mirrorReported = reported;
+            m_mirrorBase = reported;
+            m_mirrorStamp = now;
+        }
+        const auto playing = session.value("playing").toBool();
+        const auto position = playing ? m_mirrorBase + (now - m_mirrorStamp) : m_mirrorBase;
+        state["position"] = position;
         state["duration"] = session.value("duration").toDouble();
-        state["playing"] = session.value("playing").toBool();
+        state["playing"] = playing;
         state["seekable"] = true;
-        lyrics.sync(state["position"].toDouble());
+        lyrics.sync(position);
     }
     if (state["playing"].toBool() && !mirroring) {
         return;
@@ -815,6 +825,11 @@ void MusicPlayer::syncMirrorTrack() {
     current = item;
     status = QStringLiteral("Apple Music");
     m_lyricSignal = signal;
+    m_mirrorReported = -1;
+    m_mirrorBase = session.value("position").toDouble();
+    m_mirrorStamp = QDateTime::currentMSecsSinceEpoch();
+    // 换歌先清空旧歌词，避免上一首的内容残留在页面上。
+    lyrics.clear();
     lyrics.loadDirect(current);
     emit changed();
 }

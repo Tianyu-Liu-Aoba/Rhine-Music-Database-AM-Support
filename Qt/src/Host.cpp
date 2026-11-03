@@ -1155,10 +1155,12 @@ QJsonObject Host::mirrorLyricsDocument(QString title, QString artist) const {
     for (auto it = original.begin(); it != original.end(); ++it) {
         auto text = it.value();
         plain.append(text);
+        QJsonObject line{{"startMs", double(it.key())}, {"text", text}};
+        // 译文走独立字段：歌词页会用更小的字号排版。
         if (translation.contains(it.key())) {
-            text += QLatin1Char('\n') + translation.value(it.key());
+            line["translation"] = translation.value(it.key());
         }
-        lines.append(QJsonObject{{"startMs", double(it.key())}, {"text", text}});
+        lines.append(line);
     }
     return QJsonObject{{"version", 1},
                        {"timing", QStringLiteral("line")},

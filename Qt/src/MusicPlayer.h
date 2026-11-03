@@ -43,6 +43,10 @@ class MusicPlayer : public QObject {
     // 镜像 Apple Music 时用一条虚拟曲目承载标题/艺人/封面，歌词与播放页才能正常渲染。
     void syncMirrorTrack();
     QString m_lyricSignal;
+    // 镜像进度外推：报点 + 时间戳，避免两次 SMTC 上报之间歌词停住。
+    double m_mirrorReported = -1;
+    double m_mirrorBase = 0;
+    qint64 m_mirrorStamp = 0;
     QJsonObject state;
     bool loading = false;
     bool failed = false;

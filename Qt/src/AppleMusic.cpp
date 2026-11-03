@@ -289,13 +289,14 @@ QJsonObject lyricsDocumentFromLrc(const QString &lrc, const QString &translated)
     QJsonArray lines;
     QStringList plain;
     for (auto it = original.begin(); it != original.end(); ++it) {
-        auto text = it.value();
+        const auto text = it.value();
         plain.append(text);
-        // 有翻译时把两种文字放在同一行，面板按整行滚动显示。
+        QJsonObject line{{"startMs", double(it.key())}, {"text", text}};
+        // 译文放独立字段：歌词页会以更小字号显示，不和原文挤在一行。
         if (translation.contains(it.key())) {
-            text += QLatin1Char('\n') + translation.value(it.key());
+            line["translation"] = translation.value(it.key());
         }
-        lines.append(QJsonObject{{"startMs", double(it.key())}, {"text", text}});
+        lines.append(line);
     }
     return QJsonObject{{"version", 1},
                        {"timing", QStringLiteral("line")},
