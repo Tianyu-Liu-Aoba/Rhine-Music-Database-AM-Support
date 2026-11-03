@@ -784,10 +784,16 @@ void MusicPlayer::syncMirrorTrack() {
     if (state["playing"].toBool() && !mirroring) {
         return;
     }
+    const auto artist = session.value("artist").toString();
+    // Apple 会把日文标题转成罗马音：让 Host 用网易云反查原文与翻译歌词。
+    m_host->resolveMirrorLyrics(title, artist);
+    const auto signal =
+        title + QLatin1Char('#') + (m_host->mirrorLyrics().isEmpty() ? QStringLiteral("0")
+                                                                    : QStringLiteral("1"));
     if (mirroring && current.value("title").toString() == title) {
-        // 本地歌词通常比换歌晚到几百毫秒：同一首只补一次歌词。
-        if (lyrics.status == QLatin1String("empty") && m_lyricRetried != title) {
-            m_lyricRetried = title;
+        // 歌词通常比换歌晚到：反查结果出现后再补一次。
+        if (lyrics.status == QLatin1String("empty") && m_lyricSignal != signal) {
+            m_lyricSignal = signal;
             lyrics.loadDirect(current, true);
         }
         return;
@@ -796,7 +802,7 @@ void MusicPlayer::syncMirrorTrack() {
     item["kind"] = QStringLiteral("song");
     item["id"] = QStringLiteral("apple-media-session");
     item["title"] = title;
-    item["artist"] = session.value("artist").toString();
+    item["artist"] = artist;
     item["album"] = session.value("album").toString();
     item["duration"] = session.value("duration").toDouble();
     item["cover"] = m_host->mediaSessionCoverKey();
@@ -804,7 +810,7 @@ void MusicPlayer::syncMirrorTrack() {
     item["mirror"] = true;
     current = item;
     status = QStringLiteral("Apple Music");
-    m_lyricRetried = title;
+    m_lyricSignal = signal;
     lyrics.loadDirect(current);
     emit changed();
 }

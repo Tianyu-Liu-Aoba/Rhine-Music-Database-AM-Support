@@ -79,9 +79,13 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     connect(appleQueueReader.get(), &AppleQueue::changed, this, [this] { emit invalidated(); });
     // 歌词优先用本地服务（多源择优 + 翻译），取不到再走 LRCLIB。
     apple->setLyricProvider([this] {
-        return nowPlaying ? QJsonObject{{"lrc", nowPlaying->lyricText()},
-                                       {"translated", nowPlaying->translatedLyric()}}
-                          : QJsonObject{};
+        const auto local = nowPlaying ? nowPlaying->lyricText() : QString();
+        if (!local.isEmpty()) {
+            return QJsonObject{{"lrc", local},
+                               {"translated", nowPlaying ? nowPlaying->translatedLyric() : QString()}};
+        }
+        // 没有本地歌词时用网易云反查的结果（通常带翻译）。
+        return mirrorLyricDocument;
     });
     if (preference("provider") == "apple") {
         session->start();
@@ -958,6 +962,52 @@ void Host::mediaSessionControl(QString action, double value) {
     if (session) {
         session->control(action, value);
     }
+}
+/** 罗马音标题在 Apple 侧无法匹配歌词：用网易云搜索找到原文，再取歌词与翻译。 */
+void Host::resolveMirrorLyrics(QString title, QString artist) {
+    if (title.isEmpty()) {
+        return;
+    }
+    const auto key = title + QLatin1Char('|') + artist;
+    if (key == mirrorLyricKey) {
+        return;
+    }
+    mirrorLyricKey = key;
+    mirrorLyricDocument = {};
+    const auto term = artist.isEmpty() ? title : title + QLatin1Char(' ') + artist;
+    requestJson("/native/netease/search", {{"keywords", term}, {"limit", 5}},
+                [this, key](QJsonObject body, QString error) {
+                    if (!error.isEmpty() || mirrorLyricKey != key) {
+                        return;
+                    }
+                    const auto songs =
+                        body.value("body").toObject().value("result").toObject().value("songs").toArray();
+                    if (songs.isEmpty()) {
+                        return;
+                    }
+                    const auto song = songs.first().toObject();
+                    const auto id = song.value("id").toVariant().toLongLong();
+                    const auto original = song.value("name").toString();
+                    requestJson("/native/netease/lyric", {{"id", id}},
+                                [this, key, original](QJsonObject lyric, QString lyricError) {
+                                    if (!lyricError.isEmpty() || mirrorLyricKey != key) {
+                                        return;
+                                    }
+                                    const auto payload = lyric.value("body").toObject();
+                                    const auto lrc = payload.value("lrc").toObject().value("lyric").toString();
+                                    const auto translated =
+                                        payload.value("tlyric").toObject().value("lyric").toString();
+                                    if (lrc.isEmpty()) {
+                                        return;
+                                    }
+                                    mirrorLyricDocument = QJsonObject{
+                                        {"lrc", lrc}, {"translated", translated}, {"title", original}};
+                                    emit invalidated();
+                                });
+                });
+}
+QJsonObject Host::mirrorLyrics() const {
+    return mirrorLyricDocument;
 }
 /** 队列由 Apple Music 维护，这里只做限频读取（2 秒一次）。 */
 QJsonArray Host::appleQueue() {
