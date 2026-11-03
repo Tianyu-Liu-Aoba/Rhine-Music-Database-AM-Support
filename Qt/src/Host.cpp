@@ -964,7 +964,7 @@ void Host::mediaSessionControl(QString action, double value) {
     }
 }
 /** 罗马音标题在 Apple 侧无法匹配歌词：用网易云搜索找到原文，再取歌词与翻译。 */
-void Host::resolveMirrorLyrics(QString title, QString artist) {
+void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs) {
     if (title.isEmpty()) {
         return;
     }
@@ -973,38 +973,103 @@ void Host::resolveMirrorLyrics(QString title, QString artist) {
         return;
     }
     mirrorLyricKey = key;
+    mirrorLyricDuration = durationMs;
     mirrorLyricDocument = {};
     const auto term = artist.isEmpty() ? title : title + QLatin1Char(' ') + artist;
-    requestJson("/native/netease/search", {{"keywords", term}, {"limit", 5}},
-                [this, key](QJsonObject body, QString error) {
-                    if (!error.isEmpty() || mirrorLyricKey != key) {
+    // 直接调网易云公开接口：Node 桥的请求在面板进程里拿不到回复。
+    const auto send = [this](const QUrl &url, std::function<void(QJsonObject)> handle) {
+        QNetworkRequest request(url);
+        request.setHeader(QNetworkRequest::UserAgentHeader,
+                          QStringLiteral("Mozilla/5.0 RhineMusicDatabase/1.0"));
+        request.setRawHeader("Referer", "https://music.163.com/");
+        request.setTransferTimeout(8000);
+        auto *reply = lyricNet.get(request);
+        connect(reply, &QNetworkReply::finished, this,
+                [reply, handle = std::move(handle)] {
+                    reply->deleteLater();
+                    if (reply->error() != QNetworkReply::NoError) {
+                        handle({});
                         return;
                     }
-                    const auto songs =
-                        body.value("body").toObject().value("result").toObject().value("songs").toArray();
-                    if (songs.isEmpty()) {
-                        return;
-                    }
-                    const auto song = songs.first().toObject();
-                    const auto id = song.value("id").toVariant().toLongLong();
-                    const auto original = song.value("name").toString();
-                    requestJson("/native/netease/lyric", {{"id", id}},
-                                [this, key, original](QJsonObject lyric, QString lyricError) {
-                                    if (!lyricError.isEmpty() || mirrorLyricKey != key) {
-                                        return;
-                                    }
-                                    const auto payload = lyric.value("body").toObject();
-                                    const auto lrc = payload.value("lrc").toObject().value("lyric").toString();
-                                    const auto translated =
-                                        payload.value("tlyric").toObject().value("lyric").toString();
-                                    if (lrc.isEmpty()) {
-                                        return;
-                                    }
-                                    mirrorLyricDocument = QJsonObject{
-                                        {"lrc", lrc}, {"translated", translated}, {"title", original}};
-                                    emit invalidated();
-                                });
+                    handle(QJsonDocument::fromJson(reply->readAll()).object());
                 });
+    };
+    QUrl search(QStringLiteral("https://music.163.com/api/search/get"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("s"), term);
+    query.addQueryItem(QStringLiteral("type"), QStringLiteral("1"));
+    query.addQueryItem(QStringLiteral("limit"), QStringLiteral("5"));
+    search.setQuery(query);
+    send(search, [this, key, term, title, send](QJsonObject body) {
+        if (mirrorLyricKey != key) {
+            return;
+        }
+        const auto songs = body.value("result").toObject().value("songs").toArray();
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            qWarning("lyrics: term=%s songs=%lld", qPrintable(term), qlonglong(songs.size()));
+        }
+        if (songs.isEmpty()) {
+            return;
+        }
+        // 只给网易云一个关键词时它可能返回一堆同艺人曲目：按标题与时长挑最像的。
+        static const QRegularExpression noise(QStringLiteral("[\\s\\p{P}]"));
+        const auto normalize = [](QString value) {
+            value = value.toLower();
+            value.remove(noise);
+            return value;
+        };
+        const auto wantedTitle = normalize(title);
+        QJsonObject best;
+        int bestScore = -1;
+        for (const auto &value : songs) {
+            const auto candidate = value.toObject();
+            const auto candidateTitle = normalize(candidate.value("name").toString());
+            auto score = 0;
+            if (candidateTitle == wantedTitle) {
+                score += 4;
+            } else if (!candidateTitle.isEmpty() && wantedTitle.startsWith(candidateTitle)) {
+                score += 2;
+            }
+            const auto duration = candidate.value("duration").toDouble();
+            if (mirrorLyricDuration > 0 && duration > 0 &&
+                std::abs(duration - mirrorLyricDuration) < 5000) {
+                score += 2;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+        if (best.isEmpty() || bestScore < 2) {
+            return;
+        }
+        const auto song = best;
+        const auto id = song.value("id").toVariant().toLongLong();
+        const auto original = song.value("name").toString();
+        QUrl lyric(QStringLiteral("https://music.163.com/api/song/lyric"));
+        QUrlQuery params;
+        params.addQueryItem(QStringLiteral("id"), QString::number(id));
+        params.addQueryItem(QStringLiteral("lv"), QStringLiteral("1"));
+        params.addQueryItem(QStringLiteral("tv"), QStringLiteral("1"));
+        lyric.setQuery(params);
+        send(lyric, [this, key, original](QJsonObject payload) {
+            if (mirrorLyricKey != key) {
+                return;
+            }
+            const auto lrc = payload.value("lrc").toObject().value("lyric").toString();
+            const auto translated = payload.value("tlyric").toObject().value("lyric").toString();
+            if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+                qWarning("lyrics: title=%s lrc=%lld tr=%lld", qPrintable(original),
+                         qlonglong(lrc.size()), qlonglong(translated.size()));
+            }
+            if (lrc.isEmpty()) {
+                return;
+            }
+            mirrorLyricDocument =
+                QJsonObject{{"lrc", lrc}, {"translated", translated}, {"title", original}};
+            emit invalidated();
+        });
+    });
 }
 QJsonObject Host::mirrorLyrics() const {
     return mirrorLyricDocument;

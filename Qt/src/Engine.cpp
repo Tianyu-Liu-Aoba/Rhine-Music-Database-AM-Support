@@ -1135,12 +1135,19 @@ void Engine::step(double time) {
     m_coverRevision = coverRevision;
     m_current = current;
     m_cover = object["cover"].toString();
-    // 部分视图的 frame 不带封面键；Apple 镜像模式下退回系统会话的封面。
-    if (m_cover.isEmpty()) {
-        m_cover = host.mediaSessionCoverKey();
-    }
     // 图片缓存只在 GUI 线程读取，渲染线程通过 cover() 拿这份副本。
     m_coverImage = host.image(m_cover);
+    // 部分视图的 frame 不带封面键（或键解析不到图片）：Apple 镜像模式下退回系统会话封面。
+    if (m_coverImage.isNull()) {
+        const auto sessionKey = host.mediaSessionCoverKey();
+        if (!sessionKey.isEmpty()) {
+            m_cover = sessionKey;
+            m_coverImage = host.image(sessionKey);
+        }
+    }
+    if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+        qWarning("engine: cover=%s null=%d", qPrintable(m_cover), m_coverImage.isNull() ? 1 : 0);
+    }
     // 图形设备在后台可销毁；仅保存当前与可见归位卡片的图片，供恢复时重建纹理。
     const auto musicKey = current["key"].toString("empty");
     submitTextureAdmission(musicKey);

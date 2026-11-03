@@ -54,7 +54,7 @@ class Host : public QObject {
     Q_INVOKABLE QJsonArray appleQueue();
     Q_INVOKABLE bool appleQueueJump(int index);
     // Apple 常把日文标题改成罗马音：用网易云公共搜索反查原文，并取带翻译的歌词。
-    Q_INVOKABLE void resolveMirrorLyrics(QString title, QString artist);
+    Q_INVOKABLE void resolveMirrorLyrics(QString title, QString artist, double durationMs = 0);
     Q_INVOKABLE QJsonObject mirrorLyrics() const;
     Q_INVOKABLE bool mediaLoad(QString url, bool alternative = false, double position = 0,
                                bool paused = false);
@@ -144,6 +144,7 @@ class Host : public QObject {
     std::unique_ptr<MediaSession> session;
     std::unique_ptr<NowPlayingClient> nowPlaying;
     QString mirrorLyricKey;
+    double mirrorLyricDuration = 0;
     QJsonObject mirrorLyricDocument;
     std::unique_ptr<AppleQueue> appleQueueReader;
     qint64 lastQueueRefresh = 0;
@@ -153,6 +154,8 @@ class Host : public QObject {
     int metadataRevision = 0;
     mutable qint64 lastMediaUpdate = 0;
     QNetworkAccessManager network;
+    // 歌词反查走独立管理器，避免与桥的 Cookie/IPC 请求互相影响。
+    QNetworkAccessManager lyricNet;
     mutable QCache<QString, QImage> images{32 * 1024};
     // 系统会话封面独立保存：内存回收会清空 images，这里不能跟着丢。
     QString sessionCoverKey;

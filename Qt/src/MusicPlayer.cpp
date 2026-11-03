@@ -786,7 +786,7 @@ void MusicPlayer::syncMirrorTrack() {
     }
     const auto artist = session.value("artist").toString();
     // Apple 会把日文标题转成罗马音：让 Host 用网易云反查原文与翻译歌词。
-    m_host->resolveMirrorLyrics(title, artist);
+    m_host->resolveMirrorLyrics(title, artist, session.value("duration").toDouble());
     const auto signal =
         title + QLatin1Char('#') + (m_host->mirrorLyrics().isEmpty() ? QStringLiteral("0")
                                                                     : QStringLiteral("1"));

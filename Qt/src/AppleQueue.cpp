@@ -1,7 +1,8 @@
-﻿#include "AppleQueue.h"
+#include "AppleQueue.h"
+#include <QDebug>
+#include <QJsonObject>
 #include <QMetaObject>
 #include <QMutex>
-#include <QJsonObject>
 #include <QMutexLocker>
 #include <atomic>
 #include <thread>
@@ -14,6 +15,9 @@
 
 namespace {
 #ifdef Q_OS_WIN
+// U+2014 EM DASH: written as an escape so file encoding can never corrupt it.
+const QString kSeparator = QString(QChar(0x2014));
+
 QString toText(BSTR value) {
     if (!value) {
         return {};
@@ -39,7 +43,7 @@ BSTR currentName(IUIAutomationElement *element) {
     return name;
 }
 
-// æ—¶é•¿å½¢å¦‚ "2 minutes, 58 seconds"ï¼›è¯­è¨€æ— å…³åœ°æŒ‰æ•°å­—é¡ºåºå–åˆ†ä¸Žç§’ã€‚
+// Duration text looks like "2 minutes, 58 seconds"; read numbers language-agnostically.
 double parseDuration(const QString &text) {
     static const QRegularExpression digits(QStringLiteral("(\\d+)"));
     auto match = digits.globalMatch(text);
@@ -53,7 +57,11 @@ double parseDuration(const QString &text) {
     return double(numbers.at(0) * 60 + numbers.at(1)) * 1000.0;
 }
 
-/** åœ¨çª—å£å­æ ‘é‡Œæ”¶é›†æ‰€æœ‰ ListItemï¼Œå¹¶å–å®ƒä»¬çš„æ–‡æœ¬å­å…ƒç´ ä½œä¸ºå­—æ®µã€‚ */
+bool verbose() {
+    static const bool enabled = !qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG");
+    return enabled;
+}
+
 QJsonArray collectItems(IUIAutomation *automation, IUIAutomationElement *window) {
     QJsonArray result;
     IUIAutomationCondition *trueCondition = nullptr;
@@ -74,7 +82,6 @@ QJsonArray collectItems(IUIAutomation *automation, IUIAutomationElement *window)
             continue;
         }
         auto label = toText(currentName(element));
-        // æ¡ç›®ä¸‹çš„ Text å­å…ƒç´ ç»™å‡ºå¹²å‡€å­—æ®µï¼šæ ‡é¢˜ã€è‰ºäºº â€” ä¸“è¾‘ã€æ—¶é•¿ã€‚
         QStringList fields;
         IUIAutomationElementArray *texts = nullptr;
         element->FindAll(TreeScope_Descendants, trueCondition, &texts);
@@ -102,22 +109,28 @@ QJsonArray collectItems(IUIAutomation *automation, IUIAutomationElement *window)
         if (label.isEmpty()) {
             continue;
         }
-        QJsonObject item{{"index", result.size()}, {"label", label}};
+        // A real track shows title, artist/album and duration. Sidebar entries only
+        // expose a single text node, so requiring the duration filters them out.
+        const auto duration = fields.size() >= 3 ? parseDuration(fields.at(2)) : 0.0;
+        if (duration <= 0) {
+            if (verbose()) {
+                qWarning("queue: skip '%s' (fields=%lld)", qPrintable(label), qlonglong(fields.size()));
+            }
+            continue;
+        }
+        QJsonObject item{{"index", result.size()}, {"label", label}, {"duration", duration}};
         if (fields.size() >= 1) {
             item["title"] = fields.at(0);
         }
         if (fields.size() >= 2) {
             const auto rest = fields.at(1);
-            const auto split = rest.indexOf(QStringLiteral(" â€” "));
+            const auto split = rest.indexOf(kSeparator);
             if (split > 0) {
                 item["artist"] = rest.left(split).trimmed();
-                item["album"] = rest.mid(split + 3).trimmed();
+                item["album"] = rest.mid(split + 1).trimmed();
             } else {
                 item["artist"] = rest;
             }
-        }
-        if (fields.size() >= 3) {
-            item["duration"] = parseDuration(fields.at(2));
         }
         result.append(item);
     }
@@ -145,7 +158,6 @@ QJsonArray readQueue() {
     if (windows) {
         windows->get_Length(&count);
     }
-    // è¿·ä½ æ’­æ”¾å™¨åªæœ‰é˜Ÿåˆ—ï¼›æ‰¾ä¸åˆ°æ—¶é€€åˆ°ä¸»çª—å£ã€‚
     IUIAutomationElement *mini = nullptr;
     IUIAutomationElement *main = nullptr;
     for (int i = 0; i < count; ++i) {
@@ -168,6 +180,8 @@ QJsonArray readQueue() {
         result = collectItems(automation, mini);
         mini->Release();
     }
+    // The mini player is the clean source; the main window is only a fallback and
+    // its list is filtered down to entries that carry a duration.
     if (result.isEmpty() && main) {
         result = collectItems(automation, main);
     }
@@ -180,6 +194,9 @@ QJsonArray readQueue() {
     trueCondition->Release();
     root->Release();
     automation->Release();
+    if (verbose()) {
+        qWarning("queue: items=%lld", qlonglong(result.size()));
+    }
     return result;
 }
 #endif
