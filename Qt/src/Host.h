@@ -3,6 +3,7 @@
 #include "AppleMusic.h"
 #include "AppleQueue.h"
 #include "MediaSession.h"
+#include "NowPlayingClient.h"
 #include "PlatformFeatures.h"
 #include "PlaybackDiagnostics.h"
 #include "AppUpdater.h"
@@ -138,6 +139,7 @@ class Host : public QObject {
     std::unique_ptr<AudioPlayer> audio;
     std::unique_ptr<AppleMusic> apple;
     std::unique_ptr<MediaSession> session;
+    std::unique_ptr<NowPlayingClient> nowPlaying;
     std::unique_ptr<AppleQueue> appleQueueReader;
     qint64 lastQueueRefresh = 0;
     std::unique_ptr<QTemporaryDir> temporary;

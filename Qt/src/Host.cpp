@@ -72,6 +72,8 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     }
     // 系统媒体会话只在 Apple Music 模式下开启，其他来源不承担轮询开销。
     session = std::make_unique<MediaSession>(this);
+    nowPlaying = std::make_unique<NowPlayingClient>(this);
+    connect(nowPlaying.get(), &NowPlayingClient::changed, this, [this] { emit invalidated(); });
     connect(session.get(), &MediaSession::changed, this, [this] { emit invalidated(); });
     appleQueueReader = std::make_unique<AppleQueue>(this);
     connect(appleQueueReader.get(), &AppleQueue::changed, this, [this] { emit invalidated(); });
@@ -605,8 +607,10 @@ void Host::setProvider(QString value) {
     apple->reset();
     if (value == "apple") {
         session->start();
+        nowPlaying->start();
     } else {
         session->stop();
+        nowPlaying->stop();
     }
     ++epoch;
     privateCredentials.clear();
@@ -897,10 +901,28 @@ QString Host::qr(QString key) {
 }
 /** 系统媒体会话快照：只读，不由业务写入。 */
 QJsonObject Host::mediaSessionState() const {
+    // Now Playing 服务字段更全（专辑、高清封面），连不上时退回 SMTC。
+    if (nowPlaying && nowPlaying->available()) {
+        return nowPlaying->state();
+    }
     return session ? session->snapshot() : QJsonObject{};
 }
 /** 会话封面按曲目缓存；同一首歌不会每帧重新解码。 */
 QString Host::mediaSessionCoverKey() {
+    // 优先使用 Now Playing 提供的高清封面。
+    if (nowPlaying && nowPlaying->available() && !nowPlaying->coverKey().isEmpty()) {
+        const auto key = nowPlaying->coverKey();
+        if (key != sessionCoverKey || sessionCover.isNull()) {
+            QImage image;
+            if (image.loadFromData(nowPlaying->cover())) {
+                sessionCover = image.scaled(1024, 1024, Qt::KeepAspectRatio);
+                sessionCoverKey = key;
+            }
+        }
+        if (!sessionCover.isNull()) {
+            return sessionCoverKey;
+        }
+    }
     if (!session) {
         return {};
     }

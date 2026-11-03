@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.24)
 if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "14.4")
 endif()
@@ -106,6 +106,8 @@ set(RHINE_APP_SOURCES
     Qt/src/MediaSession.h
     Qt/src/AppleQueue.cpp
     Qt/src/AppleQueue.h
+    Qt/src/NowPlayingClient.cpp
+    Qt/src/NowPlayingClient.h
     Qt/src/AppUpdater.cpp
     Qt/src/AppUpdater.h
     Qt/src/AudioPlayer.cpp
@@ -269,7 +271,7 @@ if(NOT IOS)
         RHINE_PLAYBACK_SOURCES
         INCLUDE
         REGEX
-        "/(AppUpdater|AppStorage|AudioPlayer|HttpAudioStream|PlaybackDiagnostics|PlaybackConnection|Host|MusicApi|MusicPlayer|PlaybackQueue|LyricsController|Platform|AppleCatalog|AppleData|AppleMusic|AppleQueue|MediaSession|MusicData)\\.(cpp|h)$|/qrcodegen\\.cpp$"
+        "/(AppUpdater|AppStorage|AudioPlayer|HttpAudioStream|PlaybackDiagnostics|PlaybackConnection|Host|MusicApi|MusicPlayer|PlaybackQueue|LyricsController|Platform|AppleCatalog|AppleData|AppleMusic|AppleQueue|MediaSession|NowPlayingClient|MusicData)\\.(cpp|h)$|/qrcodegen\\.cpp$"
     )
     list(REMOVE_ITEM RHINE_CORE_SOURCES ${RHINE_PLAYBACK_SOURCES})
     add_library(RhinePlaybackCore STATIC ${RHINE_PLAYBACK_SOURCES})
