@@ -803,9 +803,11 @@ void MusicPlayer::syncMirrorTrack() {
     item["id"] = QStringLiteral("apple-media-session");
     item["title"] = title;
     item["artist"] = artist;
-    item["album"] = session.value("album").toString();
+    item["album"] = session.value("album").toString().isEmpty() ? title
+                                                                : session.value("album").toString();
     item["duration"] = session.value("duration").toDouble();
     item["cover"] = m_host->mediaSessionCoverKey();
+    item["sourceURL"] = session.value("url").toString();
     item["provider"] = QStringLiteral("apple");
     item["mirror"] = true;
     current = item;
