@@ -1,4 +1,5 @@
 #include "MediaSession.h"
+#include <QDebug>
 #include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
@@ -17,6 +18,12 @@
 namespace {
 constexpr int kPollMilliseconds = 500;
 
+// Local diagnosis only: RHINE_MEDIA_SESSION_LOG=1 prints session changes to stderr.
+bool verbose() {
+    static const bool enabled = !qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG");
+    return enabled;
+}
+
 #ifdef Q_OS_WIN
 using winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSession;
 using winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
@@ -25,8 +32,9 @@ QString toText(const winrt::hstring &value) {
     return value.empty() ? QString() : QString::fromWCharArray(value.c_str(), int(value.size()));
 }
 
-// 优先镜像 Apple Music；同机其他播放器只在没有 Apple Music 会话时使用。
-GlobalSystemMediaTransportControlsSession pickSession(const GlobalSystemMediaTransportControlsSessionManager &manager) {
+// Prefer the Apple Music session; other players are only a fallback.
+GlobalSystemMediaTransportControlsSession
+pickSession(const GlobalSystemMediaTransportControlsSessionManager &manager) {
     GlobalSystemMediaTransportControlsSession fallback{nullptr};
     for (auto const &session : manager.GetSessions()) {
         const auto id = toText(session.SourceAppUserModelId());
@@ -91,9 +99,17 @@ struct MediaSession::Impl {
                 changed = true;
             }
         }
-        if (changed) {
-            QMetaObject::invokeMethod(owner, [owner] { emit owner->changed(); }, Qt::QueuedConnection);
+        if (!changed) {
+            return;
         }
+        if (verbose()) {
+            qWarning("media-session: hasSession=%d title=%s playing=%d pos=%.0f/%.0f",
+                     next.value("hasSession").toBool() ? 1 : 0,
+                     qPrintable(next.value("title").toString()),
+                     next.value("playing").toBool() ? 1 : 0, next.value("position").toDouble(),
+                     next.value("duration").toDouble());
+        }
+        QMetaObject::invokeMethod(owner, [owner] { emit owner->changed(); }, Qt::QueuedConnection);
     }
 };
 
@@ -107,6 +123,9 @@ MediaSession::~MediaSession() {
 void MediaSession::start() {
     if (m_impl->running.exchange(true)) {
         return;
+    }
+    if (verbose()) {
+        qWarning("media-session: start requested");
     }
     m_impl->worker = std::thread([this] {
 #ifdef Q_OS_WIN
@@ -212,26 +231,27 @@ void MediaSession::control(const QString &action, double value) {
         return;
     }
     QMutexLocker lock(&m_impl->commandMutex);
-    m_impl->commands.push_back([action, value](GlobalSystemMediaTransportControlsSessionManager &manager) {
-        const auto session = pickSession(manager);
-        if (!session) {
-            return;
-        }
-        if (action == QLatin1String("toggle")) {
-            session.TryTogglePlayPauseAsync().get();
-        } else if (action == QLatin1String("play")) {
-            session.TryPlayAsync().get();
-        } else if (action == QLatin1String("pause")) {
-            session.TryPauseAsync().get();
-        } else if (action == QLatin1String("next")) {
-            session.TrySkipNextAsync().get();
-        } else if (action == QLatin1String("previous")) {
-            session.TrySkipPreviousAsync().get();
-        } else if (action == QLatin1String("seek")) {
-            const auto ticks = static_cast<int64_t>(value * 10000.0);
-            session.TryChangePlaybackPositionAsync(ticks).get();
-        }
-    });
+    m_impl->commands.push_back(
+        [action, value](GlobalSystemMediaTransportControlsSessionManager &manager) {
+            const auto session = pickSession(manager);
+            if (!session) {
+                return;
+            }
+            if (action == QLatin1String("toggle")) {
+                session.TryTogglePlayPauseAsync().get();
+            } else if (action == QLatin1String("play")) {
+                session.TryPlayAsync().get();
+            } else if (action == QLatin1String("pause")) {
+                session.TryPauseAsync().get();
+            } else if (action == QLatin1String("next")) {
+                session.TrySkipNextAsync().get();
+            } else if (action == QLatin1String("previous")) {
+                session.TrySkipPreviousAsync().get();
+            } else if (action == QLatin1String("seek")) {
+                const auto ticks = static_cast<int64_t>(value * 10000.0);
+                session.TryChangePlaybackPositionAsync(ticks).get();
+            }
+        });
 #else
     Q_UNUSED(action);
     Q_UNUSED(value);

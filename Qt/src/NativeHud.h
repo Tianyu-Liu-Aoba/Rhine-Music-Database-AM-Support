@@ -304,6 +304,8 @@ class NativeHud : public QObject {
     void discoverPanel(double x, double y, double width);
     void localPanel(double x, double y, double width);
     void playerBar(double x, double y, double width);
+    // Apple Music 模式下由系统媒体会话接管播放条：面板未在播放且没有可显示曲目。
+    bool mirroringSystemSession() const;
     void playerPanel(double x, double y, double width);
     void platformChoices(double x, double y, double width, bool expanded = false);
     void platformPanel(double x, double y, double width);
