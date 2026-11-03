@@ -88,6 +88,12 @@ void NowPlayingClient::poll() {
                 {"url", track.value("url").toString()}};
         }
         const bool changed = next != m_state;
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            qWarning("now-playing: song=%d title=%s album=%s cover=%d", next.isEmpty() ? 0 : 1,
+                     qPrintable(next.value("title").toString()),
+                     qPrintable(next.value("album").toString()),
+                     next.value("coverUrl").toString().isEmpty() ? 0 : 1);
+        }
         if (changed) {
             m_state = next;
             emit this->changed();

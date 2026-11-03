@@ -18,6 +18,9 @@ class AppleMusic : public QObject {
     explicit AppleMusic(QObject *parent = nullptr);
     void request(const QString &operation, const QJsonArray &arguments, Reply reply);
     void setStorefront(const QString &value);
+    // 本地 Now Playing 服务提供的歌词（含翻译）；为空时退回 LRCLIB。
+    using LyricProvider = std::function<QJsonObject()>;
+    void setLyricProvider(LyricProvider provider);
     // 跟随系统区域的目录地区；中国大陆店面在公开接口下没有歌曲与专辑，改用繁体中文店面。
     static QString defaultStorefront();
     void reset();
@@ -36,6 +39,7 @@ class AppleMusic : public QObject {
     static QJsonObject capabilities();
     quint64 m_generation = 0;
     AppleCatalog m_catalog;
+    LyricProvider m_lyricProvider;
     // 歌词走公开的 LRCLIB，与目录请求分开管理，避免共用限速队列。
     QNetworkAccessManager m_lyrics;
 };

@@ -77,6 +77,12 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     connect(session.get(), &MediaSession::changed, this, [this] { emit invalidated(); });
     appleQueueReader = std::make_unique<AppleQueue>(this);
     connect(appleQueueReader.get(), &AppleQueue::changed, this, [this] { emit invalidated(); });
+    // 歌词优先用本地服务（多源择优 + 翻译），取不到再走 LRCLIB。
+    apple->setLyricProvider([this] {
+        return nowPlaying ? QJsonObject{{"lrc", nowPlaying->lyricText()},
+                                       {"translated", nowPlaying->translatedLyric()}}
+                          : QJsonObject{};
+    });
     if (preference("provider") == "apple") {
         session->start();
     }

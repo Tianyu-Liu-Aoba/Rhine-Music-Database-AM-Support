@@ -777,6 +777,11 @@ void MusicPlayer::syncMirrorTrack() {
         return;
     }
     if (mirroring && current.value("title").toString() == title) {
+        // 本地歌词通常比换歌晚到几百毫秒：同一首只补一次歌词。
+        if (lyrics.status == QLatin1String("empty") && m_lyricRetried != title) {
+            m_lyricRetried = title;
+            lyrics.load(current, true);
+        }
         return;
     }
     QJsonObject item;
@@ -791,6 +796,7 @@ void MusicPlayer::syncMirrorTrack() {
     item["mirror"] = true;
     current = item;
     status = QStringLiteral("Apple Music");
+    m_lyricRetried = title;
     lyrics.load(current);
     emit changed();
 }

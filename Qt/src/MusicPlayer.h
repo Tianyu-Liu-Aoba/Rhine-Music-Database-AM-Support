@@ -42,6 +42,7 @@ class MusicPlayer : public QObject {
     QJsonObject current;
     // 镜像 Apple Music 时用一条虚拟曲目承载标题/艺人/封面，歌词与播放页才能正常渲染。
     void syncMirrorTrack();
+    QString m_lyricRetried;
     QJsonObject state;
     bool loading = false;
     bool failed = false;
