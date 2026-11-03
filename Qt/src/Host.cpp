@@ -1159,20 +1159,24 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
         };
         const auto wantedTitle = normalize(title);
         const auto wantedArtist = normalize(artist);
+        // 去掉括号里的版本后缀再比：Harvest (Shihoru ver.) 与 Harvest 应视为相近，
+        // 但不同版本之间仍要凭标题区分，不能只靠艺人+时长。
+        static const QRegularExpression version(QStringLiteral("[\\(（\\[].*?[\\)）\\]]"));
+        const auto core = [](QString value) {
+            value.remove(version);
+            return value.simplified();
+        };
+        const auto wantedCore = normalize(core(title));
         QJsonObject best;
         int bestScore = -1;
         for (const auto &value : songs) {
             const auto candidate = value.toObject();
             const auto candidateTitle = normalize(candidate.value("name").toString());
-            bool titleExact = false;
-            auto score = 0;
-            if (candidateTitle == wantedTitle) {
-                titleExact = true;
-                score += 4;
-            } else if (!candidateTitle.isEmpty() && wantedTitle.startsWith(candidateTitle)) {
-                score += 1;
-            }
-            // 同一位艺人的曲目很多，必须同时看艺人名才不会串到别的歌。
+            const auto candidateCore = normalize(core(candidate.value("name").toString()));
+            bool titleExact = candidateTitle == wantedTitle;
+            bool titleSimilar = !candidateCore.isEmpty() && !wantedCore.isEmpty() &&
+                                (candidateCore.contains(wantedCore) ||
+                                 wantedCore.contains(candidateCore));
             bool artistMatch = false;
             for (const auto &entry : candidate.value("artists").toArray()) {
                 const auto name = normalize(entry.toObject().value("name").toString());
@@ -1182,20 +1186,11 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
                     break;
                 }
             }
-            if (artistMatch) {
-                score += 2;
-            }
-            const auto duration = candidate.value("duration").toDouble();
-            bool durationClose = false;
-            if (mirrorLyricDuration > 0 && duration > 0 &&
-                std::abs(duration - mirrorLyricDuration) < 5000) {
-                durationClose = true;
-                score += 2;
-            }
-            // 只有「标题精确」或「艺人 + 时长吻合」才认为可信，否则宁可不给歌词。
-            if (!titleExact && !(artistMatch && durationClose)) {
+            // 只有标题相符且艺人吻合才可信；不同版本靠标题区分，避免串到别的 mix。
+            if (!(titleExact && artistMatch) && !(titleSimilar && artistMatch)) {
                 continue;
             }
+            const auto score = (titleExact ? 4 : 2) + 2;
             if (score > bestScore) {
                 bestScore = score;
                 best = candidate;
