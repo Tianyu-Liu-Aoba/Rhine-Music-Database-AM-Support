@@ -359,7 +359,8 @@ void NativeHud::empty(double width) {
         title = music.sourceLoading() ? QStringLiteral("正在同步音乐资料…") : music.libraryName();
         label = music.isSiren() ? QStringLiteral("查看曲库 →") : QStringLiteral("查看我的音乐 →");
         action = "saved";
-        if (!music.isLocal() && !music.isSiren() && music.uid.isEmpty() && !music.restoringAccount) {
+        if (!music.isLocal() && !music.isSiren() && !music.isApple() && music.uid.isEmpty() &&
+            !music.restoringAccount) {
             title = "登录后查看";
             label = "登录" + music.providerName() + " →";
             action = "music:login";
