@@ -265,7 +265,7 @@ void MediaSession::control(const QString &action, double value) {
                 session.TryPauseAsync().get();
             } else if (action == QLatin1String("next")) {
                 session.TrySkipNextAsync().get();
-            } else if (action == QLatin1String("previous")) {
+            } else if (action == QLatin1String("previous") || action == QLatin1String("prev")) {
                 session.TrySkipPreviousAsync().get();
             } else if (action == QLatin1String("seek")) {
                 const auto ticks = static_cast<int64_t>(value * 10000.0);
