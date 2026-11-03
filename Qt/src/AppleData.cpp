@@ -136,8 +136,7 @@ QJsonObject rssItem(const QJsonObject &raw, const QString &kind) {
     auto value =
         MusicData::item(kind, id, title, raw.value("artistName").toString(), QStringLiteral("apple"));
     const auto genres = raw.value("genres").toArray();
-    const auto genre =
-        genres.isEmpty() ? QString() : genres.at(0).toObject().value("name").toString();
+    const auto genre = genres.isEmpty() ? QString() : genres.at(0).toObject().value("name").toString();
     value["cover"] = artwork(raw.value("artworkUrl100").toString());
     value["sourceURL"] = raw.value("url").toString();
     value["date"] = raw.value("releaseDate").toString().left(10);

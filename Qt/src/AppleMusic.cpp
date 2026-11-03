@@ -257,7 +257,11 @@ void AppleMusic::detail(QJsonObject item, Done done) {
     const auto kind = item.value("kind").toString();
     const auto id = item.value("id").toString();
     if (id.isEmpty()) {
-        done({}, QStringLiteral("缺少目录 ID"));
+        // 榜单条目没有专辑 ID：当成"没有更多详情"返回，避免界面显示读取失败。
+        auto value = item;
+        value["description"] =
+            value.value("description").toString(QStringLiteral("公开目录没有该条目的更多详情"));
+        done(QJsonArray{value, QJsonArray{}, QJsonArray{}}, {});
         return;
     }
     if (kind == "song") {

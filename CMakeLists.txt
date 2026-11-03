@@ -102,6 +102,8 @@ set(RHINE_APP_SOURCES
     Qt/src/AppleData.h
     Qt/src/AppleMusic.cpp
     Qt/src/AppleMusic.h
+    Qt/src/MediaSession.cpp
+    Qt/src/MediaSession.h
     Qt/src/AppUpdater.cpp
     Qt/src/AppUpdater.h
     Qt/src/AudioPlayer.cpp
@@ -265,7 +267,7 @@ if(NOT IOS)
         RHINE_PLAYBACK_SOURCES
         INCLUDE
         REGEX
-        "/(AppUpdater|AppStorage|AudioPlayer|HttpAudioStream|PlaybackDiagnostics|PlaybackConnection|Host|MusicApi|MusicPlayer|PlaybackQueue|LyricsController|Platform|AppleCatalog|AppleData|AppleMusic|MusicData)\\.(cpp|h)$|/qrcodegen\\.cpp$"
+        "/(AppUpdater|AppStorage|AudioPlayer|HttpAudioStream|PlaybackDiagnostics|PlaybackConnection|Host|MusicApi|MusicPlayer|PlaybackQueue|LyricsController|Platform|AppleCatalog|AppleData|AppleMusic|MediaSession|MusicData)\\.(cpp|h)$|/qrcodegen\\.cpp$"
     )
     list(REMOVE_ITEM RHINE_CORE_SOURCES ${RHINE_PLAYBACK_SOURCES})
     add_library(RhinePlaybackCore STATIC ${RHINE_PLAYBACK_SOURCES})

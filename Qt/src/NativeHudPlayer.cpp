@@ -28,6 +28,27 @@ void NativeHud::playerBar(double x, double y, double width) {
                     !m_music->writeLoading && m_music->canMutate("/like") &&
                     player.current.value("provider").toString(m_music->provider) == m_music->provider;
     state.seekable = player.state["seekable"].toBool();
+    // Apple Music 模式下内部播放器空闲时，播放条镜像系统媒体会话，可直接遥控官方应用。
+    if (m_music->isApple() && player.current.isEmpty()) {
+        const auto session = m_host->mediaSessionState();
+        if (session.value("hasSession").toBool() && !session.value("title").toString().isEmpty()) {
+            state.title = session.value("title").toString();
+            state.artist = session.value("artist").toString();
+            state.album = session.value("album").toString();
+            state.cover = m_host->mediaSessionCoverKey();
+            state.status = QStringLiteral("Apple Music 正在播放");
+            state.positionMs = session.value("position").toDouble();
+            state.durationMs = session.value("duration").toDouble();
+            state.playing = session.value("playing").toBool();
+            state.loading = false;
+            state.failed = false;
+            state.hasTrack = true;
+            state.seekable = true;
+            state.liked = false;
+            state.likeKnown = false;
+            state.canLike = false;
+        }
+    }
     state.applicationVolume = PlatformFeatures::ApplicationVolume;
     const auto drawing = PlayerBar::render(state, {x, y, width, PlayerBar::RowHeight}, dark, *m_glyphs);
     for (const auto &command : drawing.commands) {

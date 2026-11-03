@@ -363,11 +363,28 @@ void NativeHud::playerAction(const QStringList &parts) {
             openModal("player");
         }
     } else if (name == "toggle") {
-        player.toggle();
+        if (m_music->isApple() && m_music->player.current.isEmpty() &&
+            m_host->mediaSessionState().value("hasSession").toBool()) {
+            m_host->mediaSessionControl("toggle");
+        } else {
+            player.toggle();
+        }
     } else if (name == "prev" || name == "next") {
-        player.next(name == "prev" ? -1 : 1);
+        if (m_music->isApple() && m_music->player.current.isEmpty() &&
+            m_host->mediaSessionState().value("hasSession").toBool()) {
+            m_host->mediaSessionControl(name);
+        } else {
+            player.next(name == "prev" ? -1 : 1);
+        }
     } else if (name == "seek" || name == "seek-fraction") {
-        player.seek(name == "seek" ? value / 20 : value);
+        const auto mirrored = m_music->isApple() && m_music->player.current.isEmpty() &&
+                              m_host->mediaSessionState().value("hasSession").toBool();
+        if (mirrored) {
+            const auto duration = m_host->mediaSessionState().value("duration").toDouble();
+            m_host->mediaSessionControl("seek", value * duration);
+        } else {
+            player.seek(name == "seek" ? value / 20 : value);
+        }
     } else if (name == "volume" || name == "volume-fraction") {
         player.volume(name == "volume" ? value / 10 : value);
     } else if (name == "mode") {

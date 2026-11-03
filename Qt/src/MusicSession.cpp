@@ -117,6 +117,10 @@ bool MusicLibrary::restoreSessionState(const QJsonObject &saved) {
         auto folder = std::make_shared<MusicDirectory>();
         folder->parent = directory;
         folder->item = value["item"].toObject();
+        // 目录条目必须带 ID：上游返回的榜单条目没有 ID，恢复成详情页只会得到一张空唱片。
+        if (folder->item.value("id").toString().isEmpty()) {
+            continue;
+        }
         folder->songs = value["songs"].toArray();
         const auto sortField = value["sortField"].toString("none");
         if (QStringList{"none", "title", "album", "artist"}.contains(sortField)) {

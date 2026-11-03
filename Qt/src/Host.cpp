@@ -70,6 +70,9 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     if (!storefront.isEmpty()) {
         apple->setStorefront(storefront);
     }
+    // 系统媒体会话只在 Apple Music 模式下开启，其他来源不承担轮询开销。
+    session = std::make_unique<MediaSession>(this);
+    connect(session.get(), &MediaSession::changed, this, [this] { emit invalidated(); });
     if (!offline && !remote) {
         platformMediaCommands([this](QString action) {
             QMetaObject::invokeMethod(
@@ -595,6 +598,11 @@ void Host::setProvider(QString value) {
     }
     provider = value;
     apple->reset();
+    if (value == "apple") {
+        session->start();
+    } else {
+        session->stop();
+    }
     ++epoch;
     privateCredentials.clear();
     ++metadataRevision;
@@ -881,6 +889,33 @@ QString Host::qr(QString key) {
     auto name = "qr:" + key;
     images.insert(name, new QImage(platformQR("https://music.163.com/login?codekey=" + key)), 1024);
     return name;
+}
+/** 系统媒体会话快照：只读，不由业务写入。 */
+QJsonObject Host::mediaSessionState() const {
+    return session ? session->snapshot() : QJsonObject{};
+}
+/** 会话封面按曲目缓存；同一首歌不会每帧重新解码。 */
+QString Host::mediaSessionCoverKey() {
+    if (!session) {
+        return {};
+    }
+    const auto key = session->coverKey();
+    if (key.isEmpty()) {
+        return {};
+    }
+    if (!images.contains(key)) {
+        const auto bytes = session->cover();
+        QImage image;
+        if (!bytes.isEmpty() && image.loadFromData(bytes)) {
+            images.insert(key, new QImage(image.scaled(512, 512, Qt::KeepAspectRatio)), 1024);
+        }
+    }
+    return images.contains(key) ? key : QString();
+}
+void Host::mediaSessionControl(QString action, double value) {
+    if (session) {
+        session->control(action, value);
+    }
 }
 QImage Host::image(const QString &key) const {
     // 官方音质标识随包离线交付；限定文件名，防止图片键访问资源目录之外。

@@ -1,6 +1,7 @@
 #pragma once
 #include "AudioPlayer.h"
 #include "AppleMusic.h"
+#include "MediaSession.h"
 #include "PlatformFeatures.h"
 #include "PlaybackDiagnostics.h"
 #include "AppUpdater.h"
@@ -43,6 +44,10 @@ class Host : public QObject {
     Q_INVOKABLE QString qr(QString key);
     Q_INVOKABLE QString qrImage(QString data);
     Q_INVOKABLE void mediaMetadata(QString title, QString artist, QString album);
+    // Apple Music 模式下的系统会话镜像：只读快照、封面 key 与传输控制。
+    Q_INVOKABLE QJsonObject mediaSessionState() const;
+    Q_INVOKABLE QString mediaSessionCoverKey();
+    Q_INVOKABLE void mediaSessionControl(QString action, double value = 0);
     Q_INVOKABLE bool mediaLoad(QString url, bool alternative = false, double position = 0,
                                bool paused = false);
     Q_INVOKABLE void mediaControl(QString action, double value = 0);
@@ -128,6 +133,7 @@ class Host : public QObject {
     BridgeProcess child;
     std::unique_ptr<AudioPlayer> audio;
     std::unique_ptr<AppleMusic> apple;
+    std::unique_ptr<MediaSession> session;
     std::unique_ptr<QTemporaryDir> temporary;
     QByteArray buffer;
     QString mediaTitle, mediaArtist, mediaAlbum;
