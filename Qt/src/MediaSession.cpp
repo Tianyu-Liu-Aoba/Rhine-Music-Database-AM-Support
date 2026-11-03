@@ -56,17 +56,27 @@ QByteArray readThumbnail(
             return {};
         }
         auto stream = reference.OpenReadAsync().get();
-        const auto size = static_cast<uint32_t>(stream.Size());
-        if (size == 0 || size > 8 * 1024 * 1024) {
-            return {};
-        }
+        // 部分会话的 Size() 为 0 或不准确，按块读到 EOF，避免一次性读取拿到空数据。
         winrt::Windows::Storage::Streams::DataReader reader{
             stream.as<winrt::Windows::Storage::Streams::IInputStream>()};
-        reader.LoadAsync(size).get();
-        std::vector<uint8_t> bytes(size);
-        reader.ReadBytes(bytes);
-        return QByteArray(reinterpret_cast<const char *>(bytes.data()), int(size));
+        QByteArray bytes;
+        constexpr uint32_t chunk = 64 * 1024;
+        while (bytes.size() < 8 * 1024 * 1024) {
+            const auto loaded = reader.LoadAsync(chunk).get();
+            if (loaded == 0) {
+                break;
+            }
+            auto buffer = reader.ReadBuffer(loaded);
+            bytes.append(reinterpret_cast<const char *>(buffer.data()), int(buffer.Length()));
+        }
+        if (verbose()) {
+            qWarning("media-session: thumbnail bytes=%d", int(bytes.size()));
+        }
+        return bytes;
     } catch (...) {
+        if (verbose()) {
+            qWarning("media-session: thumbnail read failed");
+        }
         return {};
     }
 }
