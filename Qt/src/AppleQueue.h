@@ -16,6 +16,8 @@ class AppleQueue : public QObject {
     // 异步读取队列；同一时刻只保留一次在途刷新。
     void refresh();
     QJsonArray items() const;
+    // 迷你播放器显示的播放时间（毫秒），作为歌词偏移的参考时钟；读不到返回 -1。
+    double positionMs(double expected = -1) const;
 
   signals:
     void changed();

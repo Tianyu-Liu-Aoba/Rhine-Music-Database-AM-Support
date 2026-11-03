@@ -799,6 +799,7 @@ void MusicPlayer::syncMirrorTrack() {
         state["duration"] = session.value("duration").toDouble();
         state["playing"] = playing;
         state["seekable"] = true;
+        m_mirrorPosition = position;
         lyrics.sync(position);
     }
     if (state["playing"].toBool() && !mirroring) {
@@ -807,8 +808,11 @@ void MusicPlayer::syncMirrorTrack() {
     const auto artist = session.value("artist").toString();
     // Apple 会把日文标题转成罗马音：让 Host 用网易云反查原文与翻译歌词。
     m_host->resolveMirrorLyrics(title, artist, session.value("duration").toDouble());
-    // 用 Apple 目录核对专辑并换高清封面；同一张专辑只查一次。
-    m_host->verifyMirrorCover(title, artist, session.value("album").toString());
+    // 用 Apple 播放器显示的播放时间做基准，自动校正歌词偏移。
+    const auto reference = m_host->applePositionMs(state["position"].toDouble());
+    if (reference > 0 && std::abs(reference - m_mirrorPosition) > 800) {
+        lyrics.adjustOffset(reference - m_mirrorPosition);
+    }
     const auto document = m_host->mirrorLyricsDocument(title, artist);
     const auto signal = title + QLatin1Char('#') + (document.isEmpty() ? QStringLiteral("0")
                                                                      : QStringLiteral("1"));

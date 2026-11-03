@@ -17,6 +17,9 @@ namespace {
 #ifdef Q_OS_WIN
 // U+2014 EM DASH: written as an escape so file encoding can never corrupt it.
 const QString kSeparator = QString(QChar(0x2014));
+// Carries the reference clock out of readQueue (it runs on a worker thread).
+double g_referencePositionMs = -1;
+QList<double> g_referenceTimes;
 
 QString toText(BSTR value) {
     if (!value) {
@@ -176,10 +179,47 @@ QJsonArray readQueue() {
         }
         window->Release();
     }
+    double positionMs = -1;
     if (mini) {
+        // The mini player shows the elapsed time as "M:SS"; use it as the reference clock.
+        IUIAutomationElementArray *texts = nullptr;
+        mini->FindAll(TreeScope_Descendants, trueCondition, &texts);
+        int textCount = 0;
+        if (texts) {
+            texts->get_Length(&textCount);
+        }
+        static const QRegularExpression timePattern(QStringLiteral("^\\d{1,3}:\\d{2}$"));
+        QList<double> times;
+        for (int i = 0; i < textCount; ++i) {
+            IUIAutomationElement *element = nullptr;
+            if (FAILED(texts->GetElement(i, &element)) || !element) {
+                continue;
+            }
+            if (controlType(element) == UIA_TextControlTypeId) {
+                const auto text = toText(currentName(element));
+                if (timePattern.match(text).hasMatch()) {
+                    const auto parts = text.split(QLatin1Char(':'));
+                    if (parts.size() == 2) {
+                        // 队列行里也有时长文本，这里全部收集，由调用方挑最接近的。
+                        times.append(
+                            (parts.at(0).toLongLong() * 60 + parts.at(1).toLongLong()) * 1000.0);
+                    }
+                }
+            }
+            element->Release();
+        }
+        positionMs = times.isEmpty() ? -1 : times.first();
+        g_referenceTimes = times;
+        if (texts) {
+            texts->Release();
+        }
         result = collectItems(automation, mini);
         mini->Release();
     }
+    if (verbose()) {
+        qWarning("queue: reference position=%lld", qlonglong(positionMs));
+    }
+    g_referencePositionMs = positionMs;
     // The mini player is the clean source; the main window is only a fallback and
     // its list is filtered down to entries that carry a duration.
     if (result.isEmpty() && main) {
@@ -205,6 +245,8 @@ QJsonArray readQueue() {
 struct AppleQueue::Impl {
     mutable QMutex mutex;
     QJsonArray items;
+    double positionMs = -1;
+    QList<double> times;
     std::atomic_bool busy{false};
 };
 
@@ -224,9 +266,12 @@ void AppleQueue::refresh() {
             return;
         }
         const auto items = readQueue();
+        const auto reference = g_referencePositionMs;
+        const auto times = g_referenceTimes;
         CoUninitialize();
 #else
         const QJsonArray items;
+        const double reference = -1;
 #endif
         bool updated = false;
         {
@@ -235,6 +280,8 @@ void AppleQueue::refresh() {
                 m_impl->items = items;
                 updated = true;
             }
+            m_impl->positionMs = reference;
+            m_impl->times = times;
         }
         m_impl->busy = false;
         if (updated) {
@@ -246,4 +293,22 @@ void AppleQueue::refresh() {
 QJsonArray AppleQueue::items() const {
     QMutexLocker lock(&m_impl->mutex);
     return m_impl->items;
+}
+
+double AppleQueue::positionMs(double expected) const {
+    QMutexLocker lock(&m_impl->mutex);
+    if (m_impl->times.isEmpty()) {
+        return m_impl->positionMs;
+    }
+    if (expected < 0) {
+        return m_impl->times.first();
+    }
+    // 迷你播放器里既有进度也有队列时长，取最接近系统会话位置的那个。
+    auto best = m_impl->times.first();
+    for (const auto value : m_impl->times) {
+        if (std::abs(value - expected) < std::abs(best - expected)) {
+            best = value;
+        }
+    }
+    return best;
 }

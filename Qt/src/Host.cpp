@@ -1369,6 +1369,19 @@ QJsonObject Host::mirrorLyricsDocument(QString title, QString artist) const {
                        {"offsetMs", 0.0},
                        {"source", QStringLiteral("netease")}};
 }
+/** Apple 播放器显示的播放时间（毫秒），用作歌词偏移的参考时钟。 */
+double Host::applePositionMs(double expected) {
+    if (!appleQueueReader || provider != "apple") {
+        return -1;
+    }
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    if (now - lastQueueRefresh > 2000) {
+        lastQueueRefresh = now;
+        appleQueueReader->refresh();
+    }
+    return appleQueueReader->positionMs(expected);
+}
+
 /** 队列由 Apple Music 维护，这里只做限频读取（2 秒一次）。 */
 QJsonArray Host::appleQueue() {
     if (!appleQueueReader || provider != "apple") {

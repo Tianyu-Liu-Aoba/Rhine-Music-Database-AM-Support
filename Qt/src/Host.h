@@ -54,6 +54,7 @@ class Host : public QObject {
     Q_INVOKABLE void mediaSessionControl(QString action, double value = 0);
     // Apple Music 队列：UIA 只读镜像，跳转用「下一首」连按实现。
     Q_INVOKABLE QJsonArray appleQueue();
+    Q_INVOKABLE double applePositionMs(double expected = -1);
     Q_INVOKABLE bool appleQueueJump(int index);
     // Apple 常把日文标题改成罗马音：用网易云公共搜索反查原文，并取带翻译的歌词。
     Q_INVOKABLE void resolveMirrorLyrics(QString title, QString artist, double durationMs = 0);
