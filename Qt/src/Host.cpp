@@ -1074,8 +1074,11 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
 QJsonObject Host::mirrorLyrics() const {
     return mirrorLyricDocument;
 }
-/** 把反查到的 LRC 转成面板歌词文档；翻译按时间戳并入同一行。 */
-QJsonObject Host::mirrorLyricsDocument() const {
+/** 只返回与当前曲目匹配的歌词；避免切歌瞬间把上一首的歌词投进新曲目。 */
+QJsonObject Host::mirrorLyricsDocument(QString title, QString artist) const {
+    if (title.isEmpty() || mirrorLyricKey != title + QLatin1Char('|') + artist) {
+        return {};
+    }
     const auto lrc = mirrorLyricDocument.value("lrc").toString();
     if (lrc.isEmpty()) {
         return {};

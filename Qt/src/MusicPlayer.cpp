@@ -787,12 +787,11 @@ void MusicPlayer::syncMirrorTrack() {
     const auto artist = session.value("artist").toString();
     // Apple 会把日文标题转成罗马音：让 Host 用网易云反查原文与翻译歌词。
     m_host->resolveMirrorLyrics(title, artist, session.value("duration").toDouble());
-    const auto signal =
-        title + QLatin1Char('#') + (m_host->mirrorLyrics().isEmpty() ? QStringLiteral("0")
-                                                                    : QStringLiteral("1"));
+    const auto document = m_host->mirrorLyricsDocument(title, artist);
+    const auto signal = title + QLatin1Char('#') + (document.isEmpty() ? QStringLiteral("0")
+                                                                     : QStringLiteral("1"));
     if (mirroring && current.value("title").toString() == title) {
-        // 反查文档就绪后直接投喂，避免依赖回调时序。
-        const auto document = m_host->mirrorLyricsDocument();
+        // 反查文档就绪后直接投喂；标题不匹配时返回空，杜绝把上一首的歌词串进来。
         if (!document.isEmpty() && m_lyricSignal != signal) {
             m_lyricSignal = signal;
             lyrics.loadDocument(current, document);
@@ -802,6 +801,8 @@ void MusicPlayer::syncMirrorTrack() {
     QJsonObject item;
     item["kind"] = QStringLiteral("song");
     item["id"] = QStringLiteral("apple-media-session");
+    // 3D 场景按 key 做纹理准入；没有稳定 key 时封面预处理会被跳过。
+    item["key"] = QStringLiteral("apple:") + title + QLatin1Char('|') + artist;
     item["title"] = title;
     item["artist"] = artist;
     item["album"] = session.value("album").toString().isEmpty() ? title
