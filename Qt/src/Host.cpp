@@ -73,6 +73,8 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     // 系统媒体会话只在 Apple Music 模式下开启，其他来源不承担轮询开销。
     session = std::make_unique<MediaSession>(this);
     connect(session.get(), &MediaSession::changed, this, [this] { emit invalidated(); });
+    appleQueueReader = std::make_unique<AppleQueue>(this);
+    connect(appleQueueReader.get(), &AppleQueue::changed, this, [this] { emit invalidated(); });
     if (preference("provider") == "apple") {
         session->start();
     }
@@ -928,6 +930,29 @@ void Host::mediaSessionControl(QString action, double value) {
     if (session) {
         session->control(action, value);
     }
+}
+/** 队列由 Apple Music 维护，这里只做限频读取（2 秒一次）。 */
+QJsonArray Host::appleQueue() {
+    if (!appleQueueReader || provider != "apple") {
+        return {};
+    }
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    if (now - lastQueueRefresh > 2000) {
+        lastQueueRefresh = now;
+        appleQueueReader->refresh();
+    }
+    return appleQueueReader->items();
+}
+/** 「Playing Next」第一条就是下一首，所以目标是 index 时要按 index + 1 次。 */
+bool Host::appleQueueJump(int index) {
+    if (!session || index < 0) {
+        return false;
+    }
+    const auto presses = std::min(index + 1, 40);
+    for (int step = 0; step < presses; ++step) {
+        QTimer::singleShot(step * 220, this, [this] { session->control("next"); });
+    }
+    return true;
 }
 QImage Host::image(const QString &key) const {
     // 系统会话封面不经过 LRU 缓存，避免内存回收时把正在显示的封面清掉。

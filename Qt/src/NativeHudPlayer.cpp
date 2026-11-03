@@ -95,11 +95,17 @@ void NativeHud::playerBar(double x, double y, double width) {
 /** 队列面板 */
 void NativeHud::playerPanel(double x, double y, double width) {
     const auto &player = m_music->player;
-    queueOffset = std::clamp(queueOffset, 0, PlaybackQueueCard::maximumOffset(player.queue.size()));
+    // Apple Music 模式下队列由官方应用维护，这里展示 UIA 读到的真实队列。
+    const auto appleTracks = m_music->isApple() ? m_host->appleQueue() : QJsonArray{};
+    const auto trackCount = appleTracks.isEmpty() ? player.queue.size() : appleTracks.size();
+    queueOffset = std::clamp(queueOffset, 0, PlaybackQueueCard::maximumOffset(trackCount));
     PlaybackQueueCard::Model model;
     model.bounds = {x, y, width, 836};
-    model.tracks = player.queue.items();
-    model.current = player.current;
+    model.tracks = appleTracks.isEmpty() ? player.queue.items() : appleTracks;
+    model.current = appleTracks.isEmpty() ? player.current : QJsonObject{};
+    if (!appleTracks.isEmpty()) {
+        model.currentIndex = -1;
+    }
     model.cover = player.coverImage;
     model.mode = player.mode;
     model.status = player.status;

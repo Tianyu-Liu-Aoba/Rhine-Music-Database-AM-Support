@@ -1,6 +1,7 @@
 #pragma once
 #include "AudioPlayer.h"
 #include "AppleMusic.h"
+#include "AppleQueue.h"
 #include "MediaSession.h"
 #include "PlatformFeatures.h"
 #include "PlaybackDiagnostics.h"
@@ -48,6 +49,9 @@ class Host : public QObject {
     Q_INVOKABLE QJsonObject mediaSessionState() const;
     Q_INVOKABLE QString mediaSessionCoverKey();
     Q_INVOKABLE void mediaSessionControl(QString action, double value = 0);
+    // Apple Music 队列：UIA 只读镜像，跳转用「下一首」连按实现。
+    Q_INVOKABLE QJsonArray appleQueue();
+    Q_INVOKABLE bool appleQueueJump(int index);
     Q_INVOKABLE bool mediaLoad(QString url, bool alternative = false, double position = 0,
                                bool paused = false);
     Q_INVOKABLE void mediaControl(QString action, double value = 0);
@@ -134,6 +138,8 @@ class Host : public QObject {
     std::unique_ptr<AudioPlayer> audio;
     std::unique_ptr<AppleMusic> apple;
     std::unique_ptr<MediaSession> session;
+    std::unique_ptr<AppleQueue> appleQueueReader;
+    qint64 lastQueueRefresh = 0;
     std::unique_ptr<QTemporaryDir> temporary;
     QByteArray buffer;
     QString mediaTitle, mediaArtist, mediaAlbum;

@@ -362,6 +362,9 @@ void NativeHud::playerAction(const QStringList &parts) {
         } else {
             openModal("player");
         }
+    } else if (name == "queue" && m_music->isApple()) {
+        // 队列条目不支持 Invoke，只能按「下一首」走到目标位置。
+        m_host->appleQueueJump(parts.value(2).toInt());
     } else if (name == "toggle") {
         if (mirroringSystemSession()) {
             m_host->mediaSessionControl("toggle");
