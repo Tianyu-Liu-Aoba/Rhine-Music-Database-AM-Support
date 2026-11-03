@@ -914,12 +914,10 @@ QJsonObject Host::mediaSessionState() const {
     // Now Playing 服务字段更全（专辑、高清封面），连不上时退回 SMTC。
     if (nowPlaying && nowPlaying->available()) {
         auto state = nowPlaying->state();
-        // Now Playing 的进度是按秒估算的，歌词会逐渐错位；用 SMTC 的毫秒时间轴校正。
+        // Now Playing 的进度是按秒估算且可能冻结，用 SMTC 的毫秒时间轴与播放状态校正。
         if (session) {
             const auto precise = session->snapshot();
-            if (precise.value("hasSession").toBool() &&
-                precise.value("appID").toString().contains(QStringLiteral("AppleMusic"),
-                                                           Qt::CaseInsensitive)) {
+            if (precise.value("hasSession").toBool()) {
                 state["position"] = precise.value("position");
                 state["duration"] = precise.value("duration");
                 state["playing"] = precise.value("playing");
@@ -931,6 +929,10 @@ QJsonObject Host::mediaSessionState() const {
 }
 /** 会话封面按曲目缓存；同一首歌不会每帧重新解码。 */
 QString Host::mediaSessionCoverKey() {
+    // Apple 目录校验通过的高清封面优先。
+    if (!appleArtKey.isEmpty() && !sessionCover.isNull()) {
+        return appleArtKey;
+    }
     // 优先使用 Now Playing 提供的高清封面。
     if (nowPlaying && nowPlaying->available() && !nowPlaying->coverKey().isEmpty()) {
         const auto key = nowPlaying->coverKey();
@@ -1052,6 +1054,84 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
             return;
         }
     });
+    // 第三来源：QQ 音乐（中日文曲库与 Apple 重合度更高）。先搜索拿 songmid，再取歌词。
+    const auto qqSend = [this](const QUrl &url, std::function<void(QJsonObject)> handle) {
+        QNetworkRequest request{url};
+        request.setHeader(QNetworkRequest::UserAgentHeader,
+                          QStringLiteral("Mozilla/5.0 RhineMusicDatabase/1.0"));
+        request.setRawHeader("Referer", "https://y.qq.com/");
+        request.setTransferTimeout(6000);
+        auto *reply = lyricNet.get(request);
+        connect(reply, &QNetworkReply::finished, this, [reply, handle = std::move(handle)] {
+            reply->deleteLater();
+            if (reply->error() != QNetworkReply::NoError) {
+                handle({});
+                return;
+            }
+            handle(QJsonDocument::fromJson(reply->readAll()).object());
+        });
+    };
+    QUrl qqSearch(QStringLiteral("https://c.y.qq.com/soso/fcgi-bin/client_search_cp"));
+    QUrlQuery qqQuery;
+    qqQuery.addQueryItem(QStringLiteral("w"), term);
+    qqQuery.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
+    qqQuery.addQueryItem(QStringLiteral("n"), QStringLiteral("5"));
+    qqSearch.setQuery(qqQuery);
+    qqSend(qqSearch, [this, key, title, finish, qqSend](QJsonObject body) {
+        if (mirrorLyricKey != key) {
+            return;
+        }
+        const auto list = body.value("data")
+                              .toObject()
+                              .value("song")
+                              .toObject()
+                              .value("list")
+                              .toArray();
+        static const QRegularExpression noise(QStringLiteral("[\\s\\p{P}]"));
+        const auto normalize = [](QString value) {
+            value = value.toLower();
+            value.remove(noise);
+            return value;
+        };
+        const auto wanted = normalize(title);
+        QString songmid;
+        for (const auto &value : list) {
+            const auto entry = value.toObject();
+            if (normalize(entry.value("songname").toString()) != wanted) {
+                continue;
+            }
+            songmid = entry.value("songmid").toString();
+            break;
+        }
+        if (songmid.isEmpty()) {
+            return;
+        }
+        QUrl qqLyric(QStringLiteral("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"));
+        QUrlQuery lyricQuery;
+        lyricQuery.addQueryItem(QStringLiteral("songmid"), songmid);
+        lyricQuery.addQueryItem(QStringLiteral("format"), QStringLiteral("json"));
+        lyricQuery.addQueryItem(QStringLiteral("nobase64"), QStringLiteral("1"));
+        qqLyric.setQuery(lyricQuery);
+        qqSend(qqLyric, [finish](QJsonObject payload) {
+            auto lrc = payload.value("lyric").toString();
+            auto trans = payload.value("trans").toString();
+            // QQ 的歌词是 HTML 转义过的，换行写成 &#10;。
+            const auto unescape = [](QString text) {
+                text.replace(QStringLiteral("&#10;"), QStringLiteral("\n"));
+                text.replace(QStringLiteral("&apos;"), QStringLiteral("'"));
+                text.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
+                text.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
+                text.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
+                text.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
+                return text;
+            };
+            lrc = unescape(lrc);
+            trans = unescape(trans);
+            if (!lrc.isEmpty()) {
+                finish(lrc, trans);
+            }
+        });
+    });
     QUrl search(QStringLiteral("https://music.163.com/api/search/get"));
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("s"), term);
@@ -1149,6 +1229,81 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
         });
     });
 }
+/** 用 Apple 目录核对专辑并以高清封面替换；校验不过就保留原有封面。 */
+void Host::verifyMirrorCover(QString title, QString artist, QString album) {
+    if (title.isEmpty()) {
+        return;
+    }
+    const auto key = title + QLatin1Char('|') + album;
+    if (key == appleArtQuery) {
+        return;
+    }
+    appleArtQuery = key;
+    appleArtKey.clear();
+    const auto storefront = AppleMusic::defaultStorefront();
+    QUrl url(QStringLiteral("https://itunes.apple.com/search"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("term"), title + QLatin1Char(' ') + artist);
+    query.addQueryItem(QStringLiteral("entity"), QStringLiteral("song"));
+    query.addQueryItem(QStringLiteral("limit"), QStringLiteral("8"));
+    query.addQueryItem(QStringLiteral("country"), storefront);
+    url.setQuery(query);
+    QNetworkRequest request{url};
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("RhineMusicDatabase/1.0"));
+    request.setTransferTimeout(8000);
+    auto *reply = lyricNet.get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, album, key] {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError || appleArtQuery != key) {
+            return;
+        }
+        static const QRegularExpression noise(QStringLiteral("[\\s\\p{P}]"));
+        const auto normalize = [](QString value) {
+            value = value.toLower();
+            value.remove(noise);
+            return value;
+        };
+        const auto wantedAlbum = normalize(album);
+        const auto results = QJsonDocument::fromJson(reply->readAll()).object()
+                                 .value("results")
+                                 .toArray();
+        QString artwork;
+        for (const auto &value : results) {
+            const auto entry = value.toObject();
+            const auto candidateAlbum = normalize(entry.value("collectionName").toString());
+            if (wantedAlbum.isEmpty() || candidateAlbum != wantedAlbum) {
+                continue;
+            }
+            artwork = entry.value("artworkUrl100").toString();
+            break;
+        }
+        if (artwork.isEmpty()) {
+            return;
+        }
+        // 目录给的是 100×100 占位地址，替换尺寸即可拿到大图。
+        static const QRegularExpression size(QStringLiteral("/\\d+x\\d+bb\\."));
+        artwork.replace(size, QStringLiteral("/3000x3000bb."));
+        QNetworkRequest artRequest{QUrl(artwork)};
+        artRequest.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("RhineMusicDatabase/1.0"));
+        artRequest.setTransferTimeout(10000);
+        auto *artReply = lyricNet.get(artRequest);
+        connect(artReply, &QNetworkReply::finished, this, [this, artReply, key] {
+            artReply->deleteLater();
+            if (artReply->error() != QNetworkReply::NoError || appleArtQuery != key) {
+                return;
+            }
+            QImage image;
+            if (!image.loadFromData(artReply->readAll())) {
+                return;
+            }
+            sessionCover = image.scaled(1024, 1024, Qt::KeepAspectRatio);
+            appleArtKey = QStringLiteral("apple-art:") + key;
+            sessionCoverKey = appleArtKey;
+            emit invalidated();
+        });
+    });
+}
+
 QJsonObject Host::mirrorLyrics() const {
     return mirrorLyricDocument;
 }

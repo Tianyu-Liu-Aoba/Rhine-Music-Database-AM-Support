@@ -49,6 +49,8 @@ class Host : public QObject {
     // Apple Music 模式下的系统会话镜像：只读快照、封面 key 与传输控制。
     Q_INVOKABLE QJsonObject mediaSessionState() const;
     Q_INVOKABLE QString mediaSessionCoverKey();
+    // 用 Apple 目录核对专辑名，命中则改用 3000px 高清封面。
+    Q_INVOKABLE void verifyMirrorCover(QString title, QString artist, QString album);
     Q_INVOKABLE void mediaSessionControl(QString action, double value = 0);
     // Apple Music 队列：UIA 只读镜像，跳转用「下一首」连按实现。
     Q_INVOKABLE QJsonArray appleQueue();
@@ -144,6 +146,8 @@ class Host : public QObject {
     std::unique_ptr<AppleMusic> apple;
     std::unique_ptr<MediaSession> session;
     std::unique_ptr<NowPlayingClient> nowPlaying;
+    QString appleArtKey;
+    QString appleArtQuery;
     QString mirrorLyricKey;
     double mirrorLyricDuration = 0;
     QJsonObject mirrorLyricDocument;

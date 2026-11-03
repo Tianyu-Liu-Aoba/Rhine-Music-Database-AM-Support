@@ -778,13 +778,23 @@ void MusicPlayer::syncMirrorTrack() {
         // SMTC 只在对齐时刻上报进度，两次上报之间会停住；按流逝时间外推才不会越听越偏。
         const auto reported = session.value("position").toDouble();
         const auto now = QDateTime::currentMSecsSinceEpoch();
-        if (std::abs(reported - m_mirrorReported) >= 1.0) {
+        const auto advanced = std::abs(reported - m_mirrorReported) >= 1.0;
+        if (advanced) {
             m_mirrorReported = reported;
             m_mirrorBase = reported;
             m_mirrorStamp = now;
         }
-        const auto playing = session.value("playing").toBool();
+        // 会话有时把 playing 报成 false（Now Playing 靠音量判断并不可靠）；进度在推进就当作在播放。
+        const auto playing = session.value("playing").toBool() || advanced;
         const auto position = playing ? m_mirrorBase + (now - m_mirrorStamp) : m_mirrorBase;
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            static qint64 lastLog = 0;
+            if (now - lastLog > 2000) {
+                lastLog = now;
+                qWarning("mirror-pos: reported=%.0f base=%.0f ours=%.0f playing=%d", reported,
+                         m_mirrorBase, position, playing ? 1 : 0);
+            }
+        }
         state["position"] = position;
         state["duration"] = session.value("duration").toDouble();
         state["playing"] = playing;
@@ -797,6 +807,8 @@ void MusicPlayer::syncMirrorTrack() {
     const auto artist = session.value("artist").toString();
     // Apple 会把日文标题转成罗马音：让 Host 用网易云反查原文与翻译歌词。
     m_host->resolveMirrorLyrics(title, artist, session.value("duration").toDouble());
+    // 用 Apple 目录核对专辑并换高清封面；同一张专辑只查一次。
+    m_host->verifyMirrorCover(title, artist, session.value("album").toString());
     const auto document = m_host->mirrorLyricsDocument(title, artist);
     const auto signal = title + QLatin1Char('#') + (document.isEmpty() ? QStringLiteral("0")
                                                                      : QStringLiteral("1"));
