@@ -384,8 +384,10 @@ void NativeHud::container(double width, double opacity) {
     card.artist = item["artist"].toString();
     card.coverKey = music.coverImage;
     card.coverSize = coverSize;
-    const QHash<QString, QString> prefixes{
-        {"qq", "QQ MID / "}, {"kugou", "KUGOU ID / "}, {"netease", "NETEASE ID / "}};
+    const QHash<QString, QString> prefixes{{"qq", "QQ MID / "},
+                                           {"kugou", "KUGOU ID / "},
+                                           {"netease", "NETEASE ID / "},
+                                           {"apple", "APPLE ID / "}};
     if (item["virtual"].toBool()) {
         card.archiveId = music.providerName() + " / " + item["title"].toString();
     } else {

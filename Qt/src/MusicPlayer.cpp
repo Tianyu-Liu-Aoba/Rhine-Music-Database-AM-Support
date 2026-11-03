@@ -118,6 +118,10 @@ QVector<QPair<QString, QString>> MusicPlayer::qualityOptions(const QString &prov
     if (provider == "siren") {
         return {{"lossless", "官网原始音源"}};
     }
+    if (provider == "apple") {
+        // 公开目录只交付 30 秒试听片段，不提供可挑选的码率档位。
+        return {{"preview", "试听片段（30 秒）"}};
+    }
     return {
         {"standard", "标准"},           {"higher", "较高"},      {"exhigh", "极高"}, {"lossless", "SQ 无损"},
         {"hires", "Hi-Res 高解析音质"}, {"jymaster", "超清母带"}};
@@ -383,6 +387,9 @@ void MusicPlayer::prepare(QJsonObject track, quint64 generation, bool reload) {
     }
     if (m_api->provider == "siren") {
         effectiveQuality = "original";
+    }
+    if (m_api->provider == "apple") {
+        effectiveQuality = "preview";
     }
 
     m_api->call(

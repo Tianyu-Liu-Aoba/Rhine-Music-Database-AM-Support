@@ -37,6 +37,14 @@ void NativeHud::musicAction(const QStringList &parts, const QString &value) {
     if (music.isLocal() && (name == "source" || name == "official")) {
         return;
     }
+    // Apple Music 公开目录没有账号与写入权限：登录、收藏和歌单编辑不进入业务层。
+    if (music.isApple() &&
+        QStringList{"login", "logout", "qr", "login-method", "kugou-edition", "like", "like-current",
+                    "subscribe", "create-playlist", "delete-playlist", "rename-playlist", "add-to-playlist",
+                    "playlist-pick", "refresh-personal", "activate", "remove-track"}
+            .contains(name)) {
+        return;
+    }
     if (name == "sort-menu") {
         if (music.current["kind"] == "playlist" && frame["mode"] == "detail") {
             openModal("detail-sort");
@@ -255,6 +263,8 @@ void NativeHud::musicAction(const QStringList &parts, const QString &value) {
     } else if (name == "picker-prev" || name == "picker-next") {
         const auto maximum = std::max(0, int(music.lists[2].size()) - 7);
         listOffset = std::clamp(listOffset + (name == "picker-prev" ? -7 : 7), 0, maximum);
+    } else if (name == "open-apple") {
+        m_host->open(QStringLiteral("https://music.apple.com/"));
     } else if (name == "official") {
         music.playOfficial();
     } else if (name == "copy") {

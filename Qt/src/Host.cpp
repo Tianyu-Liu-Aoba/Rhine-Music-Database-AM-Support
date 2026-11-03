@@ -64,6 +64,12 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     } else {
         interval = 0;
     }
+    // 公开目录地区跟随系统区域；显式偏好可固定到账号所在地区。
+    apple = std::make_unique<AppleMusic>();
+    const auto storefront = preference("apple-storefront");
+    if (!storefront.isEmpty()) {
+        apple->setStorefront(storefront);
+    }
     if (!offline && !remote) {
         platformMediaCommands([this](QString action) {
             QMetaObject::invokeMethod(
@@ -120,6 +126,10 @@ Host::~Host() {
     shutdown();
 }
 int Host::lifetime(const QString &route) {
+    // Apple 目录由门面自行缓存，Host 不再叠加磁盘缓存，避免切换地区后读到旧条目。
+    if (route.startsWith("/native/apple/")) {
+        return 0;
+    }
     if (route.startsWith("/native/")) {
         const auto operation = route.section('/', 3, 3);
         if (operation == "songs" || operation == "wiki") {
@@ -205,6 +215,26 @@ void Host::requestJson(QString route, QJsonObject values, JsonReply callback) {
     if (stopped) {
         return;
     }
+    // Apple Music 目录由原生门面直接服务：不经过 Node 桥，也不写 Cookie。
+    if (route.startsWith("/native/apple/")) {
+        if (offline) {
+            callback({}, QStringLiteral("离线模式下不提供 Apple Music 目录"));
+            return;
+        }
+        QPointer<Host> owner(this);
+        const auto generation = epoch;
+        const auto operation = route.section('/', 3, 3);
+        apple->request(operation, values.value("args").toArray(),
+                       [owner, generation, callback = std::move(callback)](QJsonObject body, QString error) {
+                           if (!owner || owner->stopped) {
+                               return;
+                           }
+                           callback(
+                               QJsonObject{{"body", body}, {"cookies", QJsonArray{}}, {"_epoch", generation}},
+                               error);
+                       });
+        return;
+    }
     if (provider == "local" && route != "/local/lyrics" &&
         !(route.startsWith("/native/") &&
           QStringList{"search", "lyrics", "songs"}.contains(route.section('/', 3, 3)))) {
@@ -224,8 +254,8 @@ void Host::requestJson(QString route, QJsonObject values, JsonReply callback) {
             operationCode = operation == "preview" ? 2 : 1;
         }
         const int requestProvider = int(std::max<qsizetype>(
-            0,
-            QStringList{"other", "netease", "qq", "kugou", "local", "siren"}.indexOf(routeProvider(route))));
+            0, QStringList{"other", "netease", "qq", "kugou", "local", "siren", "apple"}.indexOf(
+                   routeProvider(route))));
         recordPlaybackDiagnostic(
             "request-start",
             {{"requestSerial", serial}, {"operation", operationCode}, {"provider", requestProvider}});
@@ -553,7 +583,8 @@ bool Host::hasCredential(QString value) const {
  * 切换音乐来源，保持各来源的凭据与缓存隔离。
  */
 void Host::setProvider(QString value) {
-    if (value != "qq" && value != "netease" && value != "kugou" && value != "local" && value != "siren") {
+    if (value != "qq" && value != "netease" && value != "kugou" && value != "local" && value != "siren" &&
+        value != "apple") {
         return;
     }
     if (remote) {
@@ -563,6 +594,7 @@ void Host::setProvider(QString value) {
         return;
     }
     provider = value;
+    apple->reset();
     ++epoch;
     privateCredentials.clear();
     ++metadataRevision;
@@ -722,10 +754,12 @@ void Host::loadCover(QString input, TextReply callback, int maximumDimension) {
     }
     QUrl url(input.replace("http://", "https://"));
     const auto domain = url.host();
+    // Apple 封面由 mzstatic 交付，尺寸已由 AppleData 写入路径，不再追加平台专用参数。
+    const bool appleArtwork = domain == "mzstatic.com" || domain.endsWith(".mzstatic.com");
     if (!(domain == "music.126.net" || domain.endsWith(".music.126.net") || domain == "music.163.com" ||
           domain.endsWith(".music.163.com") || domain == "y.gtimg.cn" || domain == "qpic.y.qq.com" ||
           domain == "y.qq.com" || domain.endsWith(".kugou.com") || domain.endsWith(".kgimg.com") ||
-          domain == "hycdn.cn" || domain.endsWith(".hycdn.cn"))) {
+          domain == "hycdn.cn" || domain.endsWith(".hycdn.cn") || appleArtwork)) {
         callback({});
         return;
     }
@@ -733,7 +767,9 @@ void Host::loadCover(QString input, TextReply callback, int maximumDimension) {
     const auto dimension = std::clamp(maximumDimension, 128, 1024);
     QUrlQuery query(url);
     query.removeAllQueryItems("param");
-    query.addQueryItem("param", QString::number(dimension) + "y" + QString::number(dimension));
+    if (!appleArtwork) {
+        query.addQueryItem("param", QString::number(dimension) + "y" + QString::number(dimension));
+    }
     url.setQuery(query);
     auto key = url.toString();
     if (images.contains(key)) {
@@ -1023,7 +1059,9 @@ const QStringList &preferenceKeys() {
         "desktop-lyrics-translation-weight", "desktop-lyrics-line-outline",
         "desktop-lyrics-translation-outline", "desktop-lyrics-line-outline-color",
         "desktop-lyrics-translation-outline-color", "welcome-name-kugou-standard", "welcome-name-kugou-lite",
-        "account-id-kugou-standard", "account-id-kugou-lite"};
+        "account-id-kugou-standard", "account-id-kugou-lite",
+        // Apple Music 公开目录地区：为空时跟随系统区域，显式写入可固定到账号所在地区。
+        "apple-storefront"};
     return keys;
 }
 } // namespace

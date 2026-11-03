@@ -17,7 +17,7 @@ MusicLibrary::MusicLibrary(Host *host, const QJsonObject &content, QObject *pare
     : QObject(parent), host(host), api(host), player(host, &api), m_identityApi(host) {
     kugouEdition = host->preference("kugou-edition") == "lite" ? "lite" : "standard";
     provider = host->preference("provider");
-    if (!QStringList{"netease", "qq", "kugou", "local", "siren"}.contains(provider)) {
+    if (!QStringList{"netease", "qq", "kugou", "local", "siren", "apple"}.contains(provider)) {
         provider = "netease";
     }
     if (provider == "local" && !PlatformFeatures::LocalMusic) {
@@ -129,6 +129,9 @@ QString MusicLibrary::sourceMessage(int lane) const {
     }
     if (provider == "kugou" && lane == 4) {
         return QStringLiteral("此渠道暂不支持收藏专辑");
+    }
+    if (isApple() && lane > 0) {
+        return QStringLiteral("Apple Music 公开目录没有个人音乐");
     }
     if (isSiren()) {
         if (sirenCatalogLoading) {
@@ -528,7 +531,7 @@ void MusicLibrary::search(QString text, QString kind, bool more) {
 void MusicLibrary::suggest(QString text) {
     const auto token = ++m_suggestGeneration;
     suggestions.clear();
-    if (text.trimmed().isEmpty() || provider == "kugou" || isLocal() || isSiren()) {
+    if (text.trimmed().isEmpty() || provider == "kugou" || isLocal() || isSiren() || isApple()) {
         return;
     }
     const auto qq = provider == "qq";
@@ -562,7 +565,14 @@ void MusicLibrary::showSource(int lane) {
         changed();
         return;
     }
-    privateSelection = lane > 0 && !isLocal() && !isSiren();
+    if (isApple() && lane > 0) {
+        // Apple 公开目录只交付检索与试听；个人音乐与歌单写入必须在 Apple Music 内完成。
+        status = QStringLiteral("Apple Music 公开目录没有个人音乐，请使用 Apple Music 应用");
+        selectedLane = 0;
+        changed();
+        return;
+    }
+    privateSelection = lane > 0 && !isLocal() && !isSiren() && !isApple();
     if (directory) {
         leaveDirectory(false);
     }
@@ -1064,6 +1074,11 @@ QString MusicLibrary::sourceURL(QJsonObject value) const {
         return {};
     }
     const auto source = value["provider"].toString(provider);
+    if (source == "apple") {
+        // 条目自带 Apple Music 页面地址；缺失时退回目录首页，不凭 ID 拼造地区链接。
+        const auto link = value["sourceURL"].toString();
+        return link.isEmpty() ? QStringLiteral("https://music.apple.com/") : link;
+    }
     if (source == "netease") {
         return "https://music.163.com/#/" + value["kind"].toString() + "?id=" + value["id"].toString();
     }

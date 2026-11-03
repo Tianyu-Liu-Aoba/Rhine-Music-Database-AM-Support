@@ -72,7 +72,7 @@ void MusicLibrary::rememberIdentityName(QString source, QString name) {
 }
 
 void MusicLibrary::restoreIdentityName() {
-    if (isLocal() || isSiren()) {
+    if (isLocal() || isSiren() || isApple()) {
         return;
     }
     const auto source = provider == "netease" ? "qq" : "netease";
@@ -100,6 +100,12 @@ void MusicLibrary::restoreCachedAccount() {
     if (isSiren()) {
         uid.clear();
         nickname = QStringLiteral("本地收藏");
+        return;
+    }
+    if (isApple()) {
+        // 公开目录不读取 Apple ID，也不把任何令牌当成本机登录状态。
+        uid.clear();
+        nickname = QStringLiteral("Apple Music");
         return;
     }
     const auto authenticated = host->authenticated();
@@ -137,7 +143,7 @@ void MusicLibrary::refreshQQFeatures() {
 }
 
 void MusicLibrary::restoreAccount(Completion done) {
-    if (isLocal() || isSiren()) {
+    if (isLocal() || isSiren() || isApple()) {
         if (done) {
             done(true);
         }
@@ -199,7 +205,7 @@ void MusicLibrary::switchProvider(QString source, QString edition, Completion do
     }
     const auto editionChanged =
         source == "kugou" && QStringList{"standard", "lite"}.contains(edition) && edition != kugouEdition;
-    if (!QStringList{"netease", "qq", "kugou", "local", "siren"}.contains(source) ||
+    if (!QStringList{"netease", "qq", "kugou", "local", "siren", "apple"}.contains(source) ||
         (source == provider && !editionChanged)) {
         if (done) {
             done(true);

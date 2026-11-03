@@ -1,5 +1,6 @@
 #pragma once
 #include "AudioPlayer.h"
+#include "AppleMusic.h"
 #include "PlatformFeatures.h"
 #include "PlaybackDiagnostics.h"
 #include "AppUpdater.h"
@@ -126,6 +127,7 @@ class Host : public QObject {
     QQueue<QString> queue;
     BridgeProcess child;
     std::unique_ptr<AudioPlayer> audio;
+    std::unique_ptr<AppleMusic> apple;
     std::unique_ptr<QTemporaryDir> temporary;
     QByteArray buffer;
     QString mediaTitle, mediaArtist, mediaAlbum;

@@ -20,6 +20,9 @@ QString MusicApi::providerName(const QString &provider) {
     if (provider == "siren") {
         return QStringLiteral("塞壬唱片");
     }
+    if (provider == "apple") {
+        return QStringLiteral("Apple Music");
+    }
     return QStringLiteral("网易云音乐");
 }
 
@@ -74,6 +77,13 @@ void MusicApi::request(QString route, QJsonObject parameters, Reply callback, Va
     if (provider == "local") {
         if (valid()) {
             callback({{}, QStringLiteral("本地模式不提供在线平台操作"), {}});
+        }
+        return;
+    }
+    if (provider == "apple") {
+        // Apple 目录只有 /native/apple 适配接口；上游路由在这里必须明确失败，不能落到网易云。
+        if (valid()) {
+            callback({{}, QStringLiteral("Apple Music 不支持该接口"), {}});
         }
         return;
     }

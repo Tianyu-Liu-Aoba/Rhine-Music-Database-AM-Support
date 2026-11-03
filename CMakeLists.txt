@@ -96,6 +96,12 @@ FetchContent_MakeAvailable(taglib)
 include(cmake/FidelityFX.cmake)
 # 自维护源码和锁定的二维码库构成独立应用目标。
 set(RHINE_APP_SOURCES
+    Qt/src/AppleCatalog.cpp
+    Qt/src/AppleCatalog.h
+    Qt/src/AppleData.cpp
+    Qt/src/AppleData.h
+    Qt/src/AppleMusic.cpp
+    Qt/src/AppleMusic.h
     Qt/src/AppUpdater.cpp
     Qt/src/AppUpdater.h
     Qt/src/AudioPlayer.cpp
@@ -817,6 +823,14 @@ if(MSVC)
     target_compile_options(RhinePlaybackQueueRegression PRIVATE /utf-8)
 endif()
 add_test(NAME qt_playback_queue_regression COMMAND RhinePlaybackQueueRegression)
+
+# Apple Music 公开目录：条目映射、分页边界与只读接口的离线回归。
+qt_add_executable(RhineAppleMusicRegression Qt/tests/AppleMusicChecks.cpp)
+target_link_libraries(RhineAppleMusicRegression PRIVATE RhineCore)
+if(MSVC)
+    target_compile_options(RhineAppleMusicRegression PRIVATE /utf-8)
+endif()
+add_test(NAME qt_apple_music_regression COMMAND RhineAppleMusicRegression)
 
 # FG 闸门探针：验证「setQueueSubmitParams 对离屏帧生效」与「共享 device 上能建交换链」。 需要真实 GPU + 显示服务（或 xvfb + lavapipe），CI runner 没有
 # GPU，所以**不进默认 CTest 集合**：构建后用 `output/qt-build/RhineFgGateProbe` 手动运行，用它给出 "FG 架构成不成立"的硬结论。

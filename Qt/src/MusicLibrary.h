@@ -48,6 +48,9 @@ class MusicLibrary : public QObject {
     bool isSiren() const {
         return provider == "siren";
     }
+    bool isApple() const {
+        return provider == "apple";
+    }
     void refreshLocal();
     void loadSirenSource(int lane);
     void loadSirenCatalog();

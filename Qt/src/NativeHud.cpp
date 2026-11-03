@@ -311,6 +311,9 @@ void NativeHud::navigation(double width) {
     const auto x = navigationLeft(width) + 210;
     if (m_music->isLocal()) {
         control("文件夹管理 ＋", x - 210, 118, 184, "discover");
+    } else if (m_music->isApple()) {
+        // 整曲播放只能在 Apple Music 内完成，入口直接交给官方应用。
+        control("打开 Apple Music ↗", x - 210, 118, 184, "music:open-apple");
     } else if (!m_music->isSiren()) {
         control("发现音乐 ↗", x - 210, 118, 184, "discover");
     }
@@ -324,6 +327,8 @@ void NativeHud::footer(double width) {
     QString session = m_music->isLocal() ? "LOCAL LIBRARY" : "GUEST SESSION";
     if (m_music->isSiren()) {
         session = "SIREN RECORDS";
+    } else if (m_music->isApple()) {
+        session = "APPLE MUSIC";
     } else if (!m_music->uid.isEmpty()) {
         session = "NETEASE SESSION";
         if (m_music->provider == "qq") {
