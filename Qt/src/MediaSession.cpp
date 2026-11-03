@@ -176,12 +176,22 @@ void MediaSession::start() {
                         const auto media = session.TryGetMediaPropertiesAsync().get();
                         const auto info = session.GetPlaybackInfo();
                         const auto timeline = session.GetTimelineProperties();
+                        // Apple Music 常把「艺人 — 专辑」一起塞进 Artist，拆分后歌词检索才准。
+                        auto artistText = toText(media.Artist());
+                        auto albumText = toText(media.AlbumTitle());
+                        const auto dash = artistText.indexOf(QStringLiteral(" — "));
+                        if (dash > 0) {
+                            if (albumText.isEmpty()) {
+                                albumText = artistText.mid(dash + 3).trimmed();
+                            }
+                            artistText = artistText.left(dash).trimmed();
+                        }
                         state = QJsonObject{
                             {"hasSession", true},
                             {"appID", toText(session.SourceAppUserModelId())},
                             {"title", toText(media.Title())},
-                            {"artist", toText(media.Artist())},
-                            {"album", toText(media.AlbumTitle())},
+                            {"artist", artistText},
+                            {"album", albumText},
                             {"playing", static_cast<int>(info.PlaybackStatus()) == 4},
                             {"position", double(timeline.Position().count() / 10000)},
                             {"duration", double(timeline.EndTime().count() / 10000)}};
