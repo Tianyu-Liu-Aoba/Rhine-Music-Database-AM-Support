@@ -1,6 +1,7 @@
 #include "fg/FgConfig.h"
 #include "Host.h"
 #include "AppStorage.h"
+#include "PlaybackRules.h"
 #include <QBuffer>
 #include <QClipboard>
 #include <QCryptographicHash>
@@ -1157,40 +1158,26 @@ void Host::resolveMirrorLyrics(QString title, QString artist, double durationMs)
             value.remove(noise);
             return value;
         };
-        const auto wantedTitle = normalize(title);
-        const auto wantedArtist = normalize(artist);
-        // 去掉括号里的版本后缀再比：Harvest (Shihoru ver.) 与 Harvest 应视为相近，
-        // 但不同版本之间仍要凭标题区分，不能只靠艺人+时长。
-        static const QRegularExpression version(QStringLiteral("[\\(（\\[].*?[\\)）\\]]"));
-        const auto core = [](QString value) {
-            value.remove(version);
-            return value.simplified();
-        };
-        const auto wantedCore = normalize(core(title));
+        // 判定逻辑集中在 PlaybackRules（有用例），这里只挑分数最高的一条。
         QJsonObject best;
         int bestScore = -1;
         for (const auto &value : songs) {
             const auto candidate = value.toObject();
-            const auto candidateTitle = normalize(candidate.value("name").toString());
-            const auto candidateCore = normalize(core(candidate.value("name").toString()));
-            bool titleExact = candidateTitle == wantedTitle;
-            bool titleSimilar = !candidateCore.isEmpty() && !wantedCore.isEmpty() &&
-                                (candidateCore.contains(wantedCore) ||
-                                 wantedCore.contains(candidateCore));
-            bool artistMatch = false;
-            for (const auto &entry : candidate.value("artists").toArray()) {
-                const auto name = normalize(entry.toObject().value("name").toString());
-                if (!name.isEmpty() && !wantedArtist.isEmpty() &&
-                    (name.contains(wantedArtist) || wantedArtist.contains(name))) {
-                    artistMatch = true;
-                    break;
-                }
-            }
-            // 只有标题相符且艺人吻合才可信；不同版本靠标题区分，避免串到别的 mix。
-            if (!(titleExact && artistMatch) && !(titleSimilar && artistMatch)) {
+            const auto candidateTitle = candidate.value("name").toString();
+            if (!PlaybackRules::lyricMatches(title, artist, candidateTitle,
+                                             candidate.value("artists").toArray())) {
                 continue;
             }
-            const auto score = (titleExact ? 4 : 2) + 2;
+            auto score = PlaybackRules::normalized(candidateTitle) ==
+                                 PlaybackRules::normalized(title)
+                             ? 4
+                             : 2;
+            // 时长只作同标题候选的排序依据，不再作为通过条件。
+            const auto duration = candidate.value("duration").toDouble();
+            if (mirrorLyricDuration > 0 && duration > 0 &&
+                std::abs(duration - mirrorLyricDuration) < 5000) {
+                ++score;
+            }
             if (score > bestScore) {
                 bestScore = score;
                 best = candidate;

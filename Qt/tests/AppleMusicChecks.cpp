@@ -1,6 +1,7 @@
 #include "AppleData.h"
 #include "AppleMusic.h"
 #include "MusicData.h"
+#include "PlaybackRules.h"
 #include <QCoreApplication>
 #include <QDebug>
 #include <QJsonArray>
@@ -67,6 +68,31 @@ int main(int argc, char **argv) {
     };
 
     const auto song = AppleData::item(songResult());
+
+    // 播放条发出 prev，系统会话只认 previous：两者必须映射一致。
+    check(PlaybackRules::sessionAction(QStringLiteral("prev")) == QStringLiteral("previous"),
+          "player:prev maps to the session previous action");
+    check(PlaybackRules::sessionAction(QStringLiteral("next")) == QStringLiteral("next"),
+          "next passes through unchanged");
+    check(PlaybackRules::sessionAction(QStringLiteral("toggle")) == QStringLiteral("toggle"),
+          "toggle passes through unchanged");
+
+    // 歌词候选必须标题 + 艺人同时相符；只按艺人会串到同一艺人的其它曲目。
+    const auto artists = [](const QString &name) {
+        return QJsonArray{QJsonObject{{"name", name}}};
+    };
+    check(PlaybackRules::lyricMatches(QStringLiteral("Harvest (Shihoru ver.)"),
+                                      QStringLiteral("(K)NoW_NAME"), QStringLiteral("Harvest"),
+                                      artists(QStringLiteral("(K)NoW_NAME"))),
+          "version suffix still matches the plain title");
+    check(!PlaybackRules::lyricMatches(QStringLiteral("Ghost"), QStringLiteral("tayori"),
+                                       QStringLiteral("Into You"),
+                                       artists(QStringLiteral("tayori"))),
+          "a different title by the same artist is rejected");
+    check(!PlaybackRules::lyricMatches(QStringLiteral("Harvest"), QStringLiteral("A"),
+                                       QStringLiteral("Harvest"),
+                                       artists(QStringLiteral("B"))),
+          "a matching title by another artist is rejected");
     check(song["id"] == "1890100604" && song["kind"] == "song" && song["provider"] == "apple",
           "song keeps a decimal id and the apple provider");
     check(song["key"] == "apple:song:1890100604", "song key is provider-scoped");

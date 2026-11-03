@@ -1,4 +1,5 @@
 #include "MediaSession.h"
+#include "PlaybackRules.h"
 #include <QDebug>
 #include <QMetaObject>
 #include <QMutex>
@@ -265,7 +266,7 @@ void MediaSession::control(const QString &action, double value) {
                 session.TryPauseAsync().get();
             } else if (action == QLatin1String("next")) {
                 session.TrySkipNextAsync().get();
-            } else if (action == QLatin1String("previous") || action == QLatin1String("prev")) {
+            } else if (PlaybackRules::sessionAction(action) == QLatin1String("previous")) {
                 session.TrySkipPreviousAsync().get();
             } else if (action == QLatin1String("seek")) {
                 const auto ticks = static_cast<int64_t>(value * 10000.0);
