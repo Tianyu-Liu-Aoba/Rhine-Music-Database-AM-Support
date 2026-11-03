@@ -496,7 +496,10 @@ void MusicPlayer::tick(double time, bool force) {
             m_host->mediaControl("pause");
         }
     }
-    lyrics.sync(state["position"].toDouble());
+    // 试听片段只有 30 秒，按整曲时间轴同步歌词必然错位，因此不在试听时推进歌词。
+    if (!trial) {
+        lyrics.sync(state["position"].toDouble());
+    }
     // 播放结束或错误状态只在播放中或加载完成后触发
     if (!current.isEmpty() && !loading && state.contains("ended") &&
         state["ended"].toInteger() != m_endSerial) {

@@ -122,4 +122,42 @@ QJsonArray items(const QJsonArray &results) {
     }
     return values;
 }
+
+/** Marketing RSS 不提供专辑名、时长和试听地址；这些字段留空，由后续 Lookup 补齐。 */
+QJsonObject rssItem(const QJsonObject &raw, const QString &kind) {
+    if (kind != "song" && kind != "album") {
+        return {};
+    }
+    const auto id = identifier(raw, "id");
+    const auto title = raw.value("name").toString();
+    if (id.isEmpty() || title.isEmpty()) {
+        return {};
+    }
+    auto value =
+        MusicData::item(kind, id, title, raw.value("artistName").toString(), QStringLiteral("apple"));
+    const auto genres = raw.value("genres").toArray();
+    const auto genre =
+        genres.isEmpty() ? QString() : genres.at(0).toObject().value("name").toString();
+    value["cover"] = artwork(raw.value("artworkUrl100").toString());
+    value["sourceURL"] = raw.value("url").toString();
+    value["date"] = raw.value("releaseDate").toString().left(10);
+    value["genre"] = genre;
+    value["appleType"] = kind;
+    if (kind == "album") {
+        value["album"] = title;
+        value["albumID"] = id;
+    }
+    return value;
+}
+
+QJsonArray rssItems(const QJsonArray &results, const QString &kind) {
+    QJsonArray values;
+    for (const auto &entry : results) {
+        const auto value = rssItem(entry.toObject(), kind);
+        if (!value.isEmpty()) {
+            values.append(value);
+        }
+    }
+    return values;
+}
 }

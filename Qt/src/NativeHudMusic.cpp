@@ -1,4 +1,5 @@
 #include "NativeHud.h"
+#include "AppleMusic.h"
 #include "MusicData.h"
 #include <QPointer>
 #include <QUrl>
@@ -267,6 +268,15 @@ void NativeHud::musicAction(const QStringList &parts, const QString &value) {
         m_host->open(QStringLiteral("https://music.apple.com/"));
     } else if (name == "official") {
         music.playOfficial();
+    } else if (name == "storefront") {
+        // 常用目录地区循环切换；写入偏好后 Host 会立即清空旧地区缓存。
+        static const QStringList regions{"gb", "us", "tw", "hk", "jp", "de", "fr"};
+        const auto saved = m_host->preference("apple-storefront");
+        const auto shown = saved.isEmpty() ? AppleMusic::defaultStorefront() : saved;
+        const auto next = regions.value((regions.indexOf(shown) + 1) % regions.size());
+        m_host->setPreference("apple-storefront", next);
+        music.status = QStringLiteral("Apple Music 目录地区已切换为 ") + next.toUpper();
+        music.changed();
     } else if (name == "copy") {
         if (!music.current.isEmpty()) {
             m_host->copy(music.current.value("id").toString());

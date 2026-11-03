@@ -6,8 +6,9 @@
 
 namespace {
 constexpr int kPageSize = 30;
-constexpr int kSearchLimit = 50;
+constexpr int kSearchLimit = 100;
 constexpr int kLookupLimit = 200;
+constexpr int kChartLimit = 40;
 
 QJsonValue argument(const QJsonArray &arguments, qsizetype index) {
     return index >= 0 && index < arguments.size() ? arguments.at(index) : QJsonValue();
@@ -136,8 +137,11 @@ void AppleMusic::request(const QString &operation, const QJsonArray &arguments, 
         done({}, QStringLiteral("Apple Music 公开目录为只读，请在 Apple Music 应用中编辑资料库"));
         return;
     }
-    if (QStringList{"userPlaylists", "likedSongs", "likedAlbums", "librarySongs", "favoritePlaylists",
-                    "discover"}
+    if (operation == "discover") {
+        discover(argument(arguments, 0).toString(), argument(arguments, 1).toInt(), std::move(done));
+        return;
+    }
+    if (QStringList{"userPlaylists", "likedSongs", "likedAlbums", "librarySongs", "favoritePlaylists"}
             .contains(operation)) {
         done(page({}, 0,
                   QStringLiteral("Apple Music 公开目录不提供个人音乐与推荐，请在 Apple Music 应用中浏览")),
@@ -161,6 +165,30 @@ QJsonObject AppleMusic::page(const QJsonArray &values, int offset, const QString
         result["notice"] = notice;
     }
     return result;
+}
+
+/** 发现页用公开榜单填充：不需要账号，因此“每日推荐/猜你喜欢”统一落到热门歌曲。 */
+void AppleMusic::discover(const QString &tab, int offset, Done done) {
+    QString kind;
+    if (tab == "albums") {
+        kind = QStringLiteral("albums");
+    } else if (tab.isEmpty() || tab == "charts" || tab == "daily" || tab == "guess") {
+        kind = QStringLiteral("songs");
+    } else {
+        done(page({}, offset, QStringLiteral("Apple Music 公开目录只提供热门歌曲与热门专辑")), {});
+        return;
+    }
+    m_catalog.charts(kind, kChartLimit, [done, offset, kind](QJsonObject body, QString error) {
+        if (!error.isEmpty()) {
+            done({}, error);
+            return;
+        }
+        const auto results = body.value("feed").toObject().value("results").toArray();
+        done(page(AppleData::rssItems(results,
+                                      kind == "albums" ? QStringLiteral("album") : QStringLiteral("song")),
+                  offset),
+             {});
+    });
 }
 
 QJsonObject AppleMusic::capabilities() {

@@ -65,6 +65,20 @@ void AppleCatalog::lookup(QStringList ids, QString entity, int limit, Reply repl
     enqueue(url, std::move(reply));
 }
 
+/** 公开榜单与新品来自 Apple Marketing RSS：无需令牌，条目字段比 Search 接口少。 */
+void AppleCatalog::charts(QString kind, int limit, Reply reply) {
+    static const QRegularExpression shape(QStringLiteral("^(songs|albums)$"));
+    if (!shape.match(kind).hasMatch()) {
+        reply({}, QStringLiteral("Apple Music 没有该榜单类别"));
+        return;
+    }
+    QUrl url(QStringLiteral("https://rss.applemarketingtools.com/api/v2/%1/music/most-played/%2/%3.json")
+                 .arg(m_storefront)
+                 .arg(std::clamp(limit, 1, 100))
+                 .arg(kind));
+    enqueue(url, std::move(reply));
+}
+
 void AppleCatalog::setStorefront(QString value) {
     auto normalized = value.trimmed().toLower();
     static const QRegularExpression pattern(QStringLiteral("^[a-z]{2}$"));
@@ -133,7 +147,8 @@ void AppleCatalog::finish(QNetworkReply *reply, Job job) {
         }
     } else {
         const auto payload = QJsonDocument::fromJson(reply->readAll()).object();
-        if (!payload.value("results").isArray()) {
+        // Search/Lookup 返回 results 数组，Marketing RSS 返回 feed 对象；两者都接受，形状由调用方校验。
+        if (!payload.value("results").isArray() && !payload.value("feed").isObject()) {
             error = QStringLiteral("Apple Music 目录返回格式无效");
         } else {
             body = payload;

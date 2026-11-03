@@ -1,4 +1,5 @@
 #include "NativeHud.h"
+#include "AppleMusic.h"
 #include "AppUpdater.h"
 #include "DesktopLyricsAppearance.h"
 #include "Host.h"
@@ -295,6 +296,14 @@ void NativeHud::paintSettingsCustomSection(const QString &renderer, const QRectF
                  15, "regular", 0, baseInk);
         } else {
             actionBlock(account, accountLabel, accountAction, accountLabel);
+        }
+        if (m_music->isApple()) {
+            // 目录地区决定检索结果与封面链接；点击在常用地区间循环，写入偏好后立即清空缓存。
+            const auto storefront = m_host->preference("apple-storefront");
+            const auto shown = storefront.isEmpty() ? AppleMusic::defaultStorefront() : storefront;
+            const auto row = QRectF(body.left(), body.top() + 152, 320, 46);
+            actionBlock(row, QStringLiteral("目录地区 / ") + shown.toUpper(), "music:storefront",
+                        QStringLiteral("切换目录地区"));
         }
         static const QHash<QString, QString> memberships{{"free", QStringLiteral("免费账号")},
                                                          {"green", QStringLiteral("绿钻会员")},

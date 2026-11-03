@@ -13,4 +13,7 @@ QString artwork(QString url, int size = 600);
 QString kindOf(const QJsonObject &raw);
 QJsonObject item(const QJsonObject &raw);
 QJsonArray items(const QJsonArray &results);
+// Marketing RSS 的条目字段更少（无专辑名、时长、试听地址），只用已知字段做映射。
+QJsonObject rssItem(const QJsonObject &raw, const QString &kind);
+QJsonArray rssItems(const QJsonArray &results, const QString &kind);
 }

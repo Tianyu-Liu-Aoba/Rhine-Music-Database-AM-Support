@@ -22,6 +22,8 @@ class AppleCatalog : public QObject {
     explicit AppleCatalog(QObject *parent = nullptr);
     void search(QString term, QString entity, int limit, Reply reply);
     void lookup(QStringList ids, QString entity, int limit, Reply reply);
+    // 公开榜单与新品：Apple Marketing RSS，无令牌；条目字段比 Search 接口少。
+    void charts(QString kind, int limit, Reply reply);
     QString storefront() const {
         return m_storefront;
     }

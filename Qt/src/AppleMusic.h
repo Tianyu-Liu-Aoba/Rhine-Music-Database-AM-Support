@@ -29,6 +29,7 @@ class AppleMusic : public QObject {
     void artistAlbums(QString id, int offset, Done done);
     void trackPage(QJsonObject item, int offset, Done done);
     void playback(QJsonObject track, Done done);
+    void discover(const QString &tab, int offset, Done done);
     static QJsonObject page(const QJsonArray &values, int offset, const QString &notice = {});
     static QJsonObject capabilities();
     quint64 m_generation = 0;

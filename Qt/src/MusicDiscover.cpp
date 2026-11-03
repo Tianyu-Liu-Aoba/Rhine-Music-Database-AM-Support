@@ -29,7 +29,8 @@ void MusicDiscover::load(QString nextTab, bool append) {
         items = {};
     }
     m_store->changed();
-    if ((tab == "daily" || tab == "guess") && m_store->uid.isEmpty()) {
+    // Apple Music 没有账号也可以看公开榜单，因此不要求登录。
+    if ((tab == "daily" || tab == "guess") && m_store->uid.isEmpty() && !m_store->isApple()) {
         accept({{}, QStringLiteral("登录后查看每日推荐"), {}}, tab, start, append);
         return;
     }
