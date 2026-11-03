@@ -3,6 +3,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QNetworkAccessManager>
 #include <QObject>
 #include <functional>
 
@@ -30,8 +31,11 @@ class AppleMusic : public QObject {
     void trackPage(QJsonObject item, int offset, Done done);
     void playback(QJsonObject track, Done done);
     void discover(const QString &tab, int offset, Done done);
+    void lyrics(QJsonObject track, Done done);
     static QJsonObject page(const QJsonArray &values, int offset, const QString &notice = {});
     static QJsonObject capabilities();
     quint64 m_generation = 0;
     AppleCatalog m_catalog;
+    // 歌词走公开的 LRCLIB，与目录请求分开管理，避免共用限速队列。
+    QNetworkAccessManager m_lyrics;
 };

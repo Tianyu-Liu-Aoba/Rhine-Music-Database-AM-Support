@@ -1,7 +1,11 @@
 #include "AppleMusic.h"
 #include "AppleData.h"
+#include <QJsonDocument>
 #include <QLocale>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QRegularExpression>
+#include <QUrlQuery>
 #include <algorithm>
 
 namespace {
@@ -130,7 +134,7 @@ void AppleMusic::request(const QString &operation, const QJsonArray &arguments, 
         return;
     }
     if (operation == "lyrics") {
-        done({}, QStringLiteral("Apple Music 不提供逐行歌词"));
+        lyrics(argument(arguments, 0).toObject(), std::move(done));
         return;
     }
     if (operation == "mutate") {
@@ -187,6 +191,89 @@ void AppleMusic::discover(const QString &tab, int offset, Done done) {
         done(page(AppleData::rssItems(results,
                                       kind == "albums" ? QStringLiteral("album") : QStringLiteral("song")),
                   offset),
+             {});
+    });
+}
+
+/** Apple 没有开放歌词接口；逐行歌词取自公开的 LRCLIB，无需任何令牌。 */
+void AppleMusic::lyrics(QJsonObject track, Done done) {
+    const auto title = track.value("title").toString();
+    const auto artist = track.value("artist").toString();
+    if (title.isEmpty()) {
+        done({}, QStringLiteral("没有可查询的歌词信息"));
+        return;
+    }
+    QUrl url(QStringLiteral("https://lrclib.net/api/search"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("track_name"), title);
+    if (!artist.isEmpty()) {
+        query.addQueryItem(QStringLiteral("artist_name"), artist);
+    }
+    url.setQuery(query);
+    QNetworkRequest request(url);
+    // LRCLIB 要求可识别的应用标识（含来源网址），过短的 UA 会被判为滥用而返回 503。
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("RhineMusicDatabase/1.0 "
+                                     "(https://github.com/Tianyu-Liu-Aoba/"
+                                     "Rhine-Music-Database-AM-Support)"));
+    request.setTransferTimeout(12000);
+    auto *reply = m_lyrics.get(request);
+    connect(reply, &QNetworkReply::finished, this, [done, reply] {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            done({}, QStringLiteral("歌词服务不可用，请稍后重试"));
+            return;
+        }
+        const auto results = QJsonDocument::fromJson(reply->readAll()).array();
+        QJsonObject chosen;
+        for (const auto &value : results) {
+            const auto entry = value.toObject();
+            if (!entry.value("syncedLyrics").toString().isEmpty()) {
+                chosen = entry;
+                break;
+            }
+            if (chosen.isEmpty() && !entry.value("plainLyrics").toString().isEmpty()) {
+                chosen = entry;
+            }
+        }
+        const auto synced = chosen.value("syncedLyrics").toString();
+        const auto plain = chosen.value("plainLyrics").toString();
+        if (synced.isEmpty() && plain.isEmpty()) {
+            done({}, QStringLiteral("暂无歌词"));
+            return;
+        }
+        QJsonArray lines;
+        static const QRegularExpression stamp(
+            QStringLiteral("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?\\]"));
+        for (const auto &raw : synced.split('\n')) {
+            const auto match = stamp.match(raw);
+            if (!match.hasMatch()) {
+                continue;
+            }
+            const auto text = raw.mid(match.capturedEnd()).trimmed();
+            if (text.isEmpty()) {
+                continue;
+            }
+            auto fraction = 0;
+            const auto digits = match.captured(3);
+            if (!digits.isEmpty()) {
+                fraction = digits.toInt();
+                if (digits.size() == 1) {
+                    fraction *= 100;
+                } else if (digits.size() == 2) {
+                    fraction *= 10;
+                }
+            }
+            const auto startMs = (match.captured(1).toInt() * 60 + match.captured(2).toInt()) * 1000 +
+                                 fraction;
+            lines.append(QJsonObject{{"startMs", double(startMs)}, {"text", text}});
+        }
+        done(QJsonObject{{"version", 1},
+                         {"timing", lines.isEmpty() ? QStringLiteral("none") : QStringLiteral("line")},
+                         {"lines", lines},
+                         {"plainText", plain.isEmpty() ? synced : plain},
+                         {"offsetMs", 0.0},
+                         {"source", QStringLiteral("lrclib")}},
              {});
     });
 }

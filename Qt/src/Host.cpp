@@ -906,19 +906,23 @@ QString Host::mediaSessionCoverKey() {
     if (key.isEmpty()) {
         return {};
     }
-    if (!images.contains(key)) {
+    if (key != sessionCoverKey || sessionCover.isNull()) {
         const auto bytes = session->cover();
         QImage image;
-        const auto decoded = !bytes.isEmpty() && image.loadFromData(bytes);
+        bool decoded = false;
+        if (!bytes.isEmpty()) {
+            decoded = image.loadFromData(bytes);
+        }
+        if (decoded) {
+            sessionCover = image.scaled(512, 512, Qt::KeepAspectRatio);
+            sessionCoverKey = key;
+        }
         if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
             qWarning("cover: key=%s bytes=%d decoded=%d", qPrintable(key), int(bytes.size()),
                      decoded ? 1 : 0);
         }
-        if (decoded) {
-            images.insert(key, new QImage(image.scaled(512, 512, Qt::KeepAspectRatio)), 1024);
-        }
     }
-    return images.contains(key) ? key : QString();
+    return sessionCover.isNull() ? QString() : sessionCoverKey;
 }
 void Host::mediaSessionControl(QString action, double value) {
     if (session) {
@@ -926,6 +930,10 @@ void Host::mediaSessionControl(QString action, double value) {
     }
 }
 QImage Host::image(const QString &key) const {
+    // 系统会话封面不经过 LRU 缓存，避免内存回收时把正在显示的封面清掉。
+    if (!sessionCoverKey.isEmpty() && key == sessionCoverKey && !sessionCover.isNull()) {
+        return sessionCover;
+    }
     // 官方音质标识随包离线交付；限定文件名，防止图片键访问资源目录之外。
     static const QRegularExpression qualityKey(
         "^quality:(netease|qq|kugou)-(sq|hq|hires|jymaster|jyeffect|sky)$");

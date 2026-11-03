@@ -141,6 +141,9 @@ class Host : public QObject {
     mutable qint64 lastMediaUpdate = 0;
     QNetworkAccessManager network;
     mutable QCache<QString, QImage> images{32 * 1024};
+    // 系统会话封面独立保存：内存回收会清空 images，这里不能跟着丢。
+    QString sessionCoverKey;
+    QImage sessionCover;
     qint64 lastStart = 0;
     QHash<QString, qint64> blockedUntil;
     QHash<QString, QJsonObject> privateCredentials;
