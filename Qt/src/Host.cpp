@@ -909,7 +909,12 @@ QString Host::mediaSessionCoverKey() {
     if (!images.contains(key)) {
         const auto bytes = session->cover();
         QImage image;
-        if (!bytes.isEmpty() && image.loadFromData(bytes)) {
+        const auto decoded = !bytes.isEmpty() && image.loadFromData(bytes);
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            qWarning("cover: key=%s bytes=%d decoded=%d", qPrintable(key), int(bytes.size()),
+                     decoded ? 1 : 0);
+        }
+        if (decoded) {
             images.insert(key, new QImage(image.scaled(512, 512, Qt::KeepAspectRatio)), 1024);
         }
     }

@@ -7,18 +7,32 @@
 
 /** 面板没有在播放、也没有可显示曲目时，播放条交给 Apple Music 的系统会话。 */
 bool NativeHud::mirroringSystemSession() const {
-    if (!m_music->isApple()) {
+    const auto verbose = !qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG");
+    const auto trace = [&](const char *why, bool value) {
+        if (verbose) {
+            qWarning("mirror: %s=%d", why, value ? 1 : 0);
+        }
+        return value;
+    };
+    if (!trace("apple", m_music->isApple())) {
         return false;
     }
     const auto &player = m_music->player;
-    if (player.state["playing"].toBool()) {
-        return false;
-    }
-    if (!player.current.value("title").toString().isEmpty()) {
-        return false;
-    }
     const auto session = m_host->mediaSessionState();
-    return session.value("hasSession").toBool() && !session.value("title").toString().isEmpty();
+    const auto playing = player.state["playing"].toBool();
+    const auto hasTitle = !session.value("title").toString().isEmpty();
+    if (verbose) {
+        qWarning("mirror: playing=%d currentTitle=%s sessionTitle=%s", playing ? 1 : 0,
+                 qPrintable(player.current.value("title").toString()),
+                 qPrintable(session.value("title").toString()));
+    }
+    if (playing) {
+        return false;
+    }
+    if (player.current.value("title").toString().isEmpty()) {
+        return trace("session", session.value("hasSession").toBool() && hasTitle);
+    }
+    return false;
 }
 
 /** 适配播放业务快照；状态栏组件不感知账号、歌词页面或播放器生命周期。 */
