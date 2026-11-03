@@ -73,6 +73,9 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     // 系统媒体会话只在 Apple Music 模式下开启，其他来源不承担轮询开销。
     session = std::make_unique<MediaSession>(this);
     connect(session.get(), &MediaSession::changed, this, [this] { emit invalidated(); });
+    if (preference("provider") == "apple") {
+        session->start();
+    }
     if (!offline && !remote) {
         platformMediaCommands([this](QString action) {
             QMetaObject::invokeMethod(
