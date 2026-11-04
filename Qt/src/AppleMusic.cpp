@@ -121,8 +121,7 @@ void AppleMusic::reset() {
 
 void AppleMusic::request(const QString &operation, const QJsonArray &arguments, Reply reply) {
     if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
-        qWarning("apple-op: %s args=%lld web=%d", qPrintable(operation), qlonglong(arguments.size()),
-                 m_webLibrary ? 1 : 0);
+        qWarning("apple-op: %s args=%lld", qPrintable(operation), qlonglong(arguments.size()));
     }
     const auto generation = m_generation;
     Done done = [this, generation, reply = std::move(reply)](QJsonValue value, QString error) {
@@ -204,45 +203,8 @@ void AppleMusic::request(const QString &operation, const QJsonArray &arguments, 
     if (QStringList{"userPlaylists", "likedSongs", "likedAlbums", "librarySongs",
                     "favoritePlaylists"}
             .contains(operation)) {
-        // 有网页会话桥时读真实资料库；没有就明确说明需要登录。
-        if (m_webLibrary) {
-            QString kind = QStringLiteral("songs");
-            if (operation == "userPlaylists" || operation == "favoritePlaylists") {
-                kind = QStringLiteral("playlists");
-            } else if (operation == "likedAlbums") {
-                kind = QStringLiteral("albums");
-            }
-            const auto offset = argument(arguments, 0).toInt();
-            m_webLibrary(kind, QJsonObject{{"limit", 100}, {"offset", offset}},
-                         [done, kind, offset](QJsonObject body, QString error) {
-                             if (!error.isEmpty()) {
-                                 done({}, error);
-                                 return;
-                             }
-                             const auto result = body.value("result").toObject();
-                             QJsonArray values;
-                             for (const auto &value : result.value("items").toArray()) {
-                                 const auto item = value.toObject();
-                                 auto entry = MusicData::item(
-                                     kind == "albums"       ? "album"
-                                     : kind == "playlists"  ? "playlist"
-                                                            : "song",
-                                     item.value("id").toString(), item.value("name").toString(),
-                                     item.value("artist").toString(), QStringLiteral("apple"));
-                                 entry["album"] = item.value("album").toString();
-                                 entry["duration"] = item.value("duration").toDouble();
-                                 entry["cover"] = item.value("artwork").toString();
-                                 entry["sourceURL"] = QStringLiteral("https://music.apple.com/");
-                                 if (!entry.isEmpty()) {
-                                     values.append(entry);
-                                 }
-                             }
-                             done(page(values, offset), {});
-                         });
-            return;
-        }
-        done(page({}, 0,
-                  QStringLiteral("登录 Apple Music 网页版后即可在此浏览资料库")),
+        // 已放弃资料库接入：Apple 不向第三方开放个人库，官方 App 之外只提供公开目录。
+        done(page({}, 0, QStringLiteral("Apple Music 不向第三方开放个人资料库，请在 Apple Music 应用中浏览")),
              {});
         return;
     }
@@ -287,11 +249,6 @@ void AppleMusic::discover(const QString &tab, int offset, Done done) {
                   offset),
              {});
     });
-}
-
-/** Apple 没有开放歌词接口；逐行歌词取自公开的 LRCLIB，无需任何令牌。 */
-void AppleMusic::setWebLibrary(WebLibrary provider) {
-    m_webLibrary = std::move(provider);
 }
 
 void AppleMusic::setLyricProvider(LyricProvider provider) {
@@ -505,34 +462,12 @@ void AppleMusic::detail(QJsonObject item, Done done) {
         done(QJsonArray{value, QJsonArray{}, QJsonArray{}}, {});
         return;
     }
-    if (kind == "playlist" && m_webLibrary) {
-        // 资料库歌单的曲目在 /v1/me/library/playlists/{id}/tracks，不在公开目录里。
-        m_webLibrary(QStringLiteral("playlistTracks"), QJsonObject{{"id", id}, {"limit", 100}},
-                     [done, item](QJsonObject body, QString error) {
-                         if (!error.isEmpty()) {
-                             done({}, error);
-                             return;
-                         }
-                         QJsonArray songs;
-                         for (const auto &entry :
-                              body.value("result").toObject().value("items").toArray()) {
-                             const auto value = entry.toObject();
-                             auto song = MusicData::item("song", value.value("id").toString(),
-                                                         value.value("name").toString(),
-                                                         value.value("artist").toString(),
-                                                         QStringLiteral("apple"));
-                             song["album"] = value.value("album").toString();
-                             song["duration"] = value.value("duration").toDouble();
-                             song["cover"] = value.value("artwork").toString();
-                             song["sourceURL"] = QStringLiteral("https://music.apple.com/");
-                             if (!song.isEmpty()) {
-                                 songs.append(song);
-                             }
-                         }
-                         auto container = item;
-                         container["trackCount"] = songs.size();
-                         done(QJsonArray{container, songs, QJsonArray{}}, {});
-                     });
+    if (kind == "playlist") {
+        // 资料库歌单不再接入：公开目录没有个人歌单，回到"没有更多详情"的降级。
+        auto value = item;
+        value["description"] =
+            value.value("description").toString(QStringLiteral("公开目录不包含个人歌单"));
+        done(QJsonArray{value, QJsonArray{}, QJsonArray{}}, {});
         return;
     }
     if (kind == "song") {

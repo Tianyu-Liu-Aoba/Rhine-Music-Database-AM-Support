@@ -78,14 +78,6 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     connect(session.get(), &MediaSession::changed, this, [this] { emit invalidated(); });
     appleQueueReader = std::make_unique<AppleQueue>(this);
     connect(appleQueueReader.get(), &AppleQueue::changed, this, [this] { emit invalidated(); });
-    // 资料库走网页会话桥（Edge + MusicKit），不经过公开目录。
-    apple->setWebLibrary([this](QString kind, QJsonObject params,
-                                std::function<void(QJsonObject, QString)> done) {
-        requestJson(QStringLiteral("/appleweb/") + kind, params,
-                    [done](QJsonObject result, QString error) {
-                        done(result.value("body").toObject(), error);
-                    });
-    });
     // 歌词优先用本地服务（多源择优 + 翻译），取不到再走 LRCLIB。
     apple->setLyricProvider([this] {
         const auto local = nowPlaying ? nowPlaying->lyricText() : QString();

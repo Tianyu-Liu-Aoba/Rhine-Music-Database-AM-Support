@@ -565,8 +565,14 @@ void MusicLibrary::showSource(int lane) {
         changed();
         return;
     }
-    // Apple 的资料库来自网页会话桥（Edge + MusicKit）；没有可用会话时由 AppleMusic 给出提示。
-    privateSelection = lane > 0 && !isLocal() && !isSiren();
+    if (isApple() && lane > 0) {
+        // 已放弃资料库接入：Apple 不向第三方开放个人库，四栏在官方 App 内浏览。
+        status = QStringLiteral("Apple Music 不向第三方开放个人资料库，请在 Apple Music 应用中浏览");
+        selectedLane = 0;
+        changed();
+        return;
+    }
+    privateSelection = lane > 0 && !isLocal() && !isSiren() && !isApple();
     if (directory) {
         leaveDirectory(false);
     }

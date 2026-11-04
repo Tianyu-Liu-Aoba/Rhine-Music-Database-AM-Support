@@ -316,10 +316,14 @@ void NativeHud::navigation(double width) {
         control("发现音乐 ↗", x - 210, 118, 184, "discover");
     }
     control("音乐检索  /", x, 118, 184, "search");
-    // 资料库四栏来自网页会话（Edge + MusicKit），入口与其它来源保持一致。
-    control(m_music->isLocal() ? "本地曲库"
-                               : (m_music->isSiren() ? "＋ 塞壬曲库" : "＋ 我的音乐"),
-            x + 200, 118, 184, "saved");
+    if (m_music->isApple()) {
+        // 资料库不接入后，个人音乐栏改回官方应用入口。
+        control("打开 Apple Music ↗", x + 200, 118, 184, "music:open-apple");
+    } else {
+        control(m_music->isLocal() ? "本地曲库"
+                                   : (m_music->isSiren() ? "＋ 塞壬曲库" : "＋ 我的音乐"),
+                x + 200, 118, 184, "saved");
+    }
     control(m_host->updater.available() ? "设置 · 更新" : "设置", x + 400, 118, 120, "settings");
 }
 void NativeHud::footer(double width) {
