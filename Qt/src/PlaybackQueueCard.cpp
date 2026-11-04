@@ -96,7 +96,8 @@ void paint(const Model &model, const Canvas &canvas) {
     }
     if (model.tracks.isEmpty()) {
         label("播放队列为空", x + 30, y + 476, 24, width - 60, false, "demibold");
-        label("从音乐资料库添加歌曲，开启下一段音乐。", x + 30, y + 523, 15, width - 60, true);
+        label(model.hint.isEmpty() ? "从音乐资料库添加歌曲，开启下一段音乐。" : model.hint, x + 30,
+              y + 523, 15, width - 60, true);
     }
     label("清空仅移除待播歌曲，当前歌曲继续播放。", x, y + 768, 11, width * 0.65, true);
     label(QString::number(offset + (model.tracks.isEmpty() ? 0 : 1)) + "–" +

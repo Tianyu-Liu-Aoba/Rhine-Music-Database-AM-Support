@@ -2,7 +2,42 @@
 #include "MusicData.h"
 #include "PlayerBar.h"
 #include "PlaybackQueueCard.h"
+#include <QDebug>
 #include <algorithm>
+
+/** 面板没有在播放、也没有可显示曲目时，播放条交给 Apple Music 的系统会话。 */
+bool NativeHud::mirroringSystemSession() const {
+    const auto verbose = !qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG");
+    const auto trace = [&](const char *why, bool value) {
+        if (verbose) {
+            qWarning("mirror: %s=%d", why, value ? 1 : 0);
+        }
+        return value;
+    };
+    if (!trace("apple", m_music->isApple())) {
+        return false;
+    }
+    const auto &player = m_music->player;
+    const auto session = m_host->mediaSessionState();
+    const auto playing = player.state["playing"].toBool();
+    const auto hasTitle = !session.value("title").toString().isEmpty();
+    if (verbose) {
+        qWarning("mirror: playing=%d currentTitle=%s sessionTitle=%s", playing ? 1 : 0,
+                 qPrintable(player.current.value("title").toString()),
+                 qPrintable(session.value("title").toString()));
+    }
+    if (playing && !player.current.value("mirror").toBool()) {
+        return false;
+    }
+    // 镜像曲目由 MusicPlayer 维护，此时播放条直接跟随系统会话。
+    if (player.current.value("mirror").toBool()) {
+        return trace("session", session.value("hasSession").toBool() && hasTitle);
+    }
+    if (player.current.value("title").toString().isEmpty()) {
+        return trace("session", session.value("hasSession").toBool() && hasTitle);
+    }
+    return false;
+}
 
 /** 适配播放业务快照；状态栏组件不感知账号、歌词页面或播放器生命周期。 */
 void NativeHud::playerBar(double x, double y, double width) {
@@ -28,7 +63,29 @@ void NativeHud::playerBar(double x, double y, double width) {
                     !m_music->writeLoading && m_music->canMutate("/like") &&
                     player.current.value("provider").toString(m_music->provider) == m_music->provider;
     state.seekable = player.state["seekable"].toBool();
+    // Apple Music 模式下由系统媒体会话接管播放条，可直接遥控官方应用。
+    if (mirroringSystemSession()) {
+        const auto session = m_host->mediaSessionState();
+        state.title = session.value("title").toString();
+        state.artist = session.value("artist").toString();
+        state.album = session.value("album").toString();
+        state.cover = m_host->mediaSessionCoverKey();
+        state.status = session.value("playing").toBool() ? QStringLiteral("Apple Music 正在播放")
+                                                         : QStringLiteral("Apple Music 已暂停");
+        state.positionMs = session.value("position").toDouble();
+        state.durationMs = session.value("duration").toDouble();
+        state.playing = session.value("playing").toBool();
+        state.loading = false;
+        state.failed = false;
+        state.hasTrack = true;
+        state.seekable = true;
+        state.liked = false;
+        state.likeKnown = false;
+        state.canLike = false;
+    }
     state.applicationVolume = PlatformFeatures::ApplicationVolume;
+    // Apple Music 模式只做播放控制与歌词：底栏去掉封面、喜欢、播放模式与音量。
+    state.minimal = m_music->isApple();
     const auto drawing = PlayerBar::render(state, {x, y, width, PlayerBar::RowHeight}, dark, *m_glyphs);
     for (const auto &command : drawing.commands) {
         commands.append(command);
@@ -44,14 +101,24 @@ void NativeHud::playerBar(double x, double y, double width) {
 /** 队列面板 */
 void NativeHud::playerPanel(double x, double y, double width) {
     const auto &player = m_music->player;
-    queueOffset = std::clamp(queueOffset, 0, PlaybackQueueCard::maximumOffset(player.queue.size()));
+    // Apple Music 模式下队列由官方应用维护，这里展示 UIA 读到的真实队列。
+    const auto appleTracks = m_music->isApple() ? m_host->appleQueue() : QJsonArray{};
+    const auto trackCount = appleTracks.isEmpty() ? player.queue.size() : appleTracks.size();
+    queueOffset = std::clamp(queueOffset, 0, PlaybackQueueCard::maximumOffset(trackCount));
     PlaybackQueueCard::Model model;
     model.bounds = {x, y, width, 836};
-    model.tracks = player.queue.items();
-    model.current = player.current;
+    model.tracks = appleTracks.isEmpty() ? player.queue.items() : appleTracks;
+    model.current = appleTracks.isEmpty() ? player.current : QJsonObject{};
+    if (!appleTracks.isEmpty()) {
+        model.currentIndex = -1;
+    }
     model.cover = player.coverImage;
     model.mode = player.mode;
     model.status = player.status;
+    // 队列为空时给出可操作的原因，而不是让用户面对一句通用文案。
+    if (model.tracks.isEmpty() && m_music->isApple()) {
+        model.hint = QStringLiteral("请打开 Apple Music 的迷你播放器，队列会自动同步到这里。");
+    }
     model.currentIndex = player.queue.indexOf(player.current);
     model.offset = queueOffset;
     model.playing = player.state["playing"].toBool();

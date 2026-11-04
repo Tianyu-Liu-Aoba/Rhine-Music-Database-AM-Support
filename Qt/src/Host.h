@@ -1,5 +1,9 @@
 #pragma once
 #include "AudioPlayer.h"
+#include "AppleMusic.h"
+#include "AppleQueue.h"
+#include "MediaSession.h"
+#include "NowPlayingClient.h"
 #include "PlatformFeatures.h"
 #include "PlaybackDiagnostics.h"
 #include "AppUpdater.h"
@@ -42,6 +46,21 @@ class Host : public QObject {
     Q_INVOKABLE QString qr(QString key);
     Q_INVOKABLE QString qrImage(QString data);
     Q_INVOKABLE void mediaMetadata(QString title, QString artist, QString album);
+    // Apple Music 模式下的系统会话镜像：只读快照、封面 key 与传输控制。
+    Q_INVOKABLE QJsonObject mediaSessionState() const;
+    Q_INVOKABLE QString mediaSessionCoverKey();
+    // 用 Apple 目录核对专辑名，命中则改用 3000px 高清封面。
+    Q_INVOKABLE void verifyMirrorCover(QString title, QString artist, QString album);
+    Q_INVOKABLE void mediaSessionControl(QString action, double value = 0);
+    // Apple Music 队列：UIA 只读镜像，跳转用「下一首」连按实现。
+    Q_INVOKABLE QJsonArray appleQueue();
+    Q_INVOKABLE double applePositionMs(double expected = -1);
+    Q_INVOKABLE void invalidateAppleQueue();
+    Q_INVOKABLE bool appleQueueJump(int index);
+    // Apple 常把日文标题改成罗马音：用网易云公共搜索反查原文，并取带翻译的歌词。
+    Q_INVOKABLE void resolveMirrorLyrics(QString title, QString artist, double durationMs = 0);
+    Q_INVOKABLE QJsonObject mirrorLyrics() const;
+    Q_INVOKABLE QJsonObject mirrorLyricsDocument(QString title, QString artist) const;
     Q_INVOKABLE bool mediaLoad(QString url, bool alternative = false, double position = 0,
                                bool paused = false);
     Q_INVOKABLE void mediaControl(QString action, double value = 0);
@@ -126,13 +145,28 @@ class Host : public QObject {
     QQueue<QString> queue;
     BridgeProcess child;
     std::unique_ptr<AudioPlayer> audio;
+    std::unique_ptr<AppleMusic> apple;
+    std::unique_ptr<MediaSession> session;
+    std::unique_ptr<NowPlayingClient> nowPlaying;
+    QString appleArtKey;
+    QString appleArtQuery;
+    QString mirrorLyricKey;
+    double mirrorLyricDuration = 0;
+    QJsonObject mirrorLyricDocument;
+    std::unique_ptr<AppleQueue> appleQueueReader;
+    qint64 lastQueueRefresh = 0;
     std::unique_ptr<QTemporaryDir> temporary;
     QByteArray buffer;
     QString mediaTitle, mediaArtist, mediaAlbum;
     int metadataRevision = 0;
     mutable qint64 lastMediaUpdate = 0;
     QNetworkAccessManager network;
+    // 歌词反查走独立管理器，避免与桥的 Cookie/IPC 请求互相影响。
+    QNetworkAccessManager lyricNet;
     mutable QCache<QString, QImage> images{32 * 1024};
+    // 系统会话封面独立保存：内存回收会清空 images，这里不能跟着丢。
+    QString sessionCoverKey;
+    QImage sessionCover;
     qint64 lastStart = 0;
     QHash<QString, qint64> blockedUntil;
     QHash<QString, QJsonObject> privateCredentials;

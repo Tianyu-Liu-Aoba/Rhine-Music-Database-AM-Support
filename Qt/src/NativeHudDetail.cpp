@@ -44,7 +44,12 @@ QString NativeHud::body() const {
 
 void NativeHud::detail(double width, double opacity) {
     auto &music = *m_music;
-    const auto item = music.current;
+    auto item = music.current;
+    const auto mirrorPlaying = music.player.current.value("mirror").toBool();
+    // Apple Music 是遥控形态：这一页永远说的是"正在播放的那首"，与资料库选中项无关。
+    if (mirrorPlaying && (m_music->isApple() || lyricsMode || item.isEmpty())) {
+        item = music.player.current;
+    }
     if (item.isEmpty()) {
         archive(width);
         return;
@@ -53,8 +58,33 @@ void NativeHud::detail(double width, double opacity) {
         container(width, opacity);
         return;
     }
+    // 遥控主页：左对齐的大标题 + 艺人/专辑，整体下移一档；歌词与大封面留到「词」页。
+    if (m_music->isApple() && !lyricsMode) {
+        const auto left = width * 0.56;
+        const auto usableWidth = width - left - 59;
+        save();
+        alpha(opacity);
+        text(QStringLiteral("NOW PLAYING / 正在播放"), left, 430, 12);
+        const auto titleSize = 46.0 * (0.94 + 0.06 * opacity);
+        limited(item.value("title").toString(), left, 482, titleSize, usableWidth);
+        auto cursor = 542.0;
+        const auto artist = item.value("artist").toString();
+        if (!artist.isEmpty()) {
+            limited(artist, left, cursor, 20, usableWidth);
+            cursor += 34;
+        }
+        const auto album = item.value("album").toString();
+        if (!album.isEmpty()) {
+            limited(album, left, cursor, 15, usableWidth);
+        }
+        restore();
+        return;
+    }
     const auto x = width * 0.56;
-    if (lyricsMode && PlaybackQueue::identity(item) != PlaybackQueue::identity(music.player.current)) {
+    // 镜像曲目不在资料库选中项里：这个守卫会把歌词模式立刻判为失效，必须跳过。
+    const auto mirroring = music.player.current.value("mirror").toBool();
+    if (lyricsMode && !mirroring &&
+        PlaybackQueue::identity(item) != PlaybackQueue::identity(music.player.current)) {
         lyricsMode = false;
     }
     const auto usable = width - x - 59;
@@ -68,7 +98,10 @@ void NativeHud::detail(double width, double opacity) {
              dark ? QJsonArray{0.08, 0.095, 0.09, 0.96} : QJsonArray{0.973, 0.969, 0.933, 0.96});
     }
     button("← 返回资料库   ESC", 59, 211, 360, 54, "back", 20, "demibold");
-    limited(item["id"].toString(), 60, 845, 37, 330);
+    // 这行大字是条目标题位：镜像曲目没有目录 ID，显示专辑名（缺失时退回歌名）。
+    const auto headline = item["album"].toString().isEmpty() ? item["title"].toString()
+                                                             : item["album"].toString();
+    limited(headline, 60, 845, 37, 330);
     text("MUSIC DATABASE", 60, 893, 10);
     text("DRAG TO INSPECT", 60, 917, 10);
     button("查看封面 ↗", 60, 944, 260, 35, "viewer", 14);
@@ -384,8 +417,10 @@ void NativeHud::container(double width, double opacity) {
     card.artist = item["artist"].toString();
     card.coverKey = music.coverImage;
     card.coverSize = coverSize;
-    const QHash<QString, QString> prefixes{
-        {"qq", "QQ MID / "}, {"kugou", "KUGOU ID / "}, {"netease", "NETEASE ID / "}};
+    const QHash<QString, QString> prefixes{{"qq", "QQ MID / "},
+                                           {"kugou", "KUGOU ID / "},
+                                           {"netease", "NETEASE ID / "},
+                                           {"apple", "APPLE ID / "}};
     if (item["virtual"].toBool()) {
         card.archiveId = music.providerName() + " / " + item["title"].toString();
     } else {

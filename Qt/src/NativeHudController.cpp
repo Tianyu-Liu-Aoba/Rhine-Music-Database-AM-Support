@@ -2,6 +2,7 @@
 #include "fg/FgConfig.h"
 #include "GraphicsBackend.h"
 #include "NativeHud.h"
+#include <QDebug>
 #include "MusicData.h"
 #include "MusicDiscover.h"
 #include <QJsonDocument>
@@ -308,17 +309,28 @@ void NativeHud::playerAction(const QStringList &parts) {
     const auto value = parts.value(2).toDouble();
     const auto index = int(value);
     if (name == "lyrics") {
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            qWarning("hud: lyrics pressed current=%d mirror=%d mode=%s", player.current.isEmpty() ? 0 : 1,
+                     player.current.value("mirror").toBool() ? 1 : 0,
+                     qPrintable(frame["mode"].toString()));
+        }
         if (!player.current.isEmpty()) {
             modal.clear();
             closing = false;
             lyricsMode = true;
             m_lyricsBrowse.reset();
-            music.followPlayback(player.current);
+            // 镜像曲目不在面板队列里：跟随播放会构造一个空目录，把歌词页顶掉。
+            if (!player.current.value("mirror").toBool()) {
+                music.followPlayback(player.current);
+            }
             m_scene.mode("detail");
             frame["mode"] = "detail";
+            // 歌词模式是 HUD 内部状态，必须主动请求重绘，否则要等下一次输入才更新。
+            music.changed();
         }
     } else if (name == "lyrics-close") {
         lyricsMode = false;
+        music.changed();
     } else if (name == "lyrics-follow") {
         m_lyricsBrowse.reset();
     } else if (name == "lyrics-offset") {
@@ -362,12 +374,28 @@ void NativeHud::playerAction(const QStringList &parts) {
         } else {
             openModal("player");
         }
+    } else if (name == "queue" && m_music->isApple()) {
+        // 队列条目不支持 Invoke，只能按「下一首」走到目标位置。
+        m_host->appleQueueJump(parts.value(2).toInt());
     } else if (name == "toggle") {
-        player.toggle();
+        if (mirroringSystemSession()) {
+            m_host->mediaSessionControl("toggle");
+        } else {
+            player.toggle();
+        }
     } else if (name == "prev" || name == "next") {
-        player.next(name == "prev" ? -1 : 1);
+        if (mirroringSystemSession()) {
+            m_host->mediaSessionControl(name);
+        } else {
+            player.next(name == "prev" ? -1 : 1);
+        }
     } else if (name == "seek" || name == "seek-fraction") {
-        player.seek(name == "seek" ? value / 20 : value);
+        if (mirroringSystemSession()) {
+            const auto duration = m_host->mediaSessionState().value("duration").toDouble();
+            m_host->mediaSessionControl("seek", value * duration);
+        } else {
+            player.seek(name == "seek" ? value / 20 : value);
+        }
     } else if (name == "volume" || name == "volume-fraction") {
         player.volume(name == "volume" ? value / 10 : value);
     } else if (name == "mode") {

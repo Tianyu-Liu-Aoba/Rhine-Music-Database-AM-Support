@@ -254,15 +254,27 @@ void NativeHud::draw(QJsonObject next, double stageWidth, double time) {
     } else if (frame["mode"] == "boot") {
         boot(width);
     } else {
-        if (frame["mode"] == "archive" && !(lyricsMode && !m_music->player.current.isEmpty())) {
+        // Apple Music 遥控形态没有档案页：主视图固定为"当前播放"。
+        const auto remoteOnly = m_music->isApple();
+        if (frame["mode"] == "archive" && !remoteOnly &&
+            !(lyricsMode && !m_music->player.current.isEmpty())) {
             archiveMask(width);
         }
         brand();
         navigation(width);
         footer(width);
         if (modal != "search") {
-            if (frame["mode"] == "detail" || (lyricsMode && !m_music->player.current.isEmpty())) {
-                detail(width, lyricsMode ? 1 : frame["detail"].toDouble());
+            if (remoteOnly || frame["mode"] == "detail" ||
+                (lyricsMode && !m_music->player.current.isEmpty())) {
+                // 切换页面时做 260ms 的过场：标题轻微缩放、歌词淡入。
+                const auto now = QDateTime::currentMSecsSinceEpoch();
+                if (lyricsMode != m_pageSwitchLyrics) {
+                    m_pageSwitchLyrics = lyricsMode;
+                    m_pageSwitchAt = now;
+                }
+                const auto progress =
+                    std::clamp(double(now - m_pageSwitchAt) / 260.0, 0.0, 1.0);
+                detail(width, remoteOnly ? progress : (lyricsMode ? progress : frame["detail"].toDouble()));
             } else {
                 archive(width);
             }
@@ -291,6 +303,12 @@ void NativeHud::archiveMask(double width) {
     restore();
 }
 void NativeHud::brand() {
+    if (m_music->isApple()) {
+        // 遥控形态去掉「正在播放」大标题，把品牌字放大作为唯一标识。
+        text("RHINE LAB", 59, 110, 52, "bold", 1);
+        text("MUSIC DATABASE", 59, 168, 24, "demibold", 1.7);
+        return;
+    }
     roll("music-brand", m_music->libraryName(), 59, 115.425, 44, std::min(720.0, width * 0.45), "bold");
     aligned("RHINE LAB / MUSIC DATABASE", 59, 173, 14, "demibold", 1);
 }
@@ -309,6 +327,12 @@ double NativeHud::navigationLeft(double width) {
 }
 void NativeHud::navigation(double width) {
     const auto x = navigationLeft(width) + 210;
+    if (m_music->isApple()) {
+        // 两个入口并排靠右，整体降一档存在感。
+        control("打开 Apple Music ↗", x + 210, 118, 184, "music:open-apple");
+        control(m_host->updater.available() ? "设置 · 更新" : "设置", x + 400, 118, 120, "settings");
+        return;
+    }
     if (m_music->isLocal()) {
         control("文件夹管理 ＋", x - 210, 118, 184, "discover");
     } else if (!m_music->isSiren()) {
@@ -324,6 +348,8 @@ void NativeHud::footer(double width) {
     QString session = m_music->isLocal() ? "LOCAL LIBRARY" : "GUEST SESSION";
     if (m_music->isSiren()) {
         session = "SIREN RECORDS";
+    } else if (m_music->isApple()) {
+        session = "APPLE MUSIC";
     } else if (!m_music->uid.isEmpty()) {
         session = "NETEASE SESSION";
         if (m_music->provider == "qq") {
@@ -354,7 +380,8 @@ void NativeHud::empty(double width) {
         title = music.sourceLoading() ? QStringLiteral("正在同步音乐资料…") : music.libraryName();
         label = music.isSiren() ? QStringLiteral("查看曲库 →") : QStringLiteral("查看我的音乐 →");
         action = "saved";
-        if (!music.isLocal() && !music.isSiren() && music.uid.isEmpty() && !music.restoringAccount) {
+        if (!music.isLocal() && !music.isSiren() && !music.isApple() && music.uid.isEmpty() &&
+            !music.restoringAccount) {
             title = "登录后查看";
             label = "登录" + music.providerName() + " →";
             action = "music:login";
@@ -425,6 +452,10 @@ void NativeHud::archive(double width) {
         text(QString::number(music.libraryTotal()), 172, 932, 22);
     } else {
         empty(width);
+    }
+    // Apple Music 只做遥控：来源切换/列浏览/分页提示在遥控形态下没有意义。
+    if (m_music->isApple()) {
+        return;
     }
     const auto nav = width * 0.2625;
     button("↑", nav, 903, 46, 46, "prev", 28);

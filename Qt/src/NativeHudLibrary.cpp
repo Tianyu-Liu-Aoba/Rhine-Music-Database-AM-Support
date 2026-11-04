@@ -192,8 +192,8 @@ void NativeHud::libraryResultList(double x, double y, double width) {
     if (values.isEmpty()) {
         const auto message = m_music->sourceMessage(lane);
         text(fit(message, 18, usable, "demibold"), left, y + ResultListTop + 92, 18, "demibold");
-        if (!m_music->isLocal() && !m_music->isSiren() && lane > 0 && m_music->uid.isEmpty() &&
-            !m_music->restoringAccount) {
+        if (!m_music->isLocal() && !m_music->isSiren() && !m_music->isApple() && lane > 0 &&
+            m_music->uid.isEmpty() && !m_music->restoringAccount) {
             libraryOutlineButton(QRectF(left, y + ResultListTop + 132, 300, 44),
                                  QStringLiteral("登录") + m_music->providerName() + " →", "music:login", 14);
         }

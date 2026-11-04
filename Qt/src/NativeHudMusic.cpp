@@ -1,4 +1,5 @@
 #include "NativeHud.h"
+#include "AppleMusic.h"
 #include "MusicData.h"
 #include <QPointer>
 #include <QUrl>
@@ -35,6 +36,14 @@ void NativeHud::musicAction(const QStringList &parts, const QString &value) {
         return;
     }
     if (music.isLocal() && (name == "source" || name == "official")) {
+        return;
+    }
+    // Apple Music 公开目录没有账号与写入权限：登录、收藏和歌单编辑不进入业务层。
+    if (music.isApple() &&
+        QStringList{"login", "logout", "qr", "login-method", "kugou-edition", "like", "like-current",
+                    "subscribe", "create-playlist", "delete-playlist", "rename-playlist", "add-to-playlist",
+                    "playlist-pick", "refresh-personal", "activate", "remove-track"}
+            .contains(name)) {
         return;
     }
     if (name == "sort-menu") {
@@ -255,8 +264,19 @@ void NativeHud::musicAction(const QStringList &parts, const QString &value) {
     } else if (name == "picker-prev" || name == "picker-next") {
         const auto maximum = std::max(0, int(music.lists[2].size()) - 7);
         listOffset = std::clamp(listOffset + (name == "picker-prev" ? -7 : 7), 0, maximum);
+    } else if (name == "open-apple") {
+        m_host->open(QStringLiteral("https://music.apple.com/"));
     } else if (name == "official") {
         music.playOfficial();
+    } else if (name == "storefront") {
+        // 常用目录地区循环切换；写入偏好后 Host 会立即清空旧地区缓存。
+        static const QStringList regions{"gb", "us", "tw", "hk", "jp", "de", "fr"};
+        const auto saved = m_host->preference("apple-storefront");
+        const auto shown = saved.isEmpty() ? AppleMusic::defaultStorefront() : saved;
+        const auto next = regions.value((regions.indexOf(shown) + 1) % regions.size());
+        m_host->setPreference("apple-storefront", next);
+        music.status = QStringLiteral("Apple Music 目录地区已切换为 ") + next.toUpper();
+        music.changed();
     } else if (name == "copy") {
         if (!music.current.isEmpty()) {
             m_host->copy(music.current.value("id").toString());

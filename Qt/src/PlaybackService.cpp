@@ -35,7 +35,7 @@ PlaybackService::PlaybackService(QString root, QString guiExecutable, bool offli
             [this] { send(m_gui, {{"event", "activate"}}); });
     connect(&m_interfaceSession, &InterfaceSession::stateChanged, this, &PlaybackService::publish);
     auto provider = m_host.preference("provider");
-    if (!QStringList{"netease", "qq", "kugou", "local", "siren"}.contains(provider)) {
+    if (!QStringList{"netease", "qq", "kugou", "local", "siren", "apple"}.contains(provider)) {
         provider = "netease";
     }
     m_api.provider = provider;
@@ -321,7 +321,7 @@ QJsonObject PlaybackService::hostCommand(const QString &method, const QJsonObjec
         m_host.logout();
     } else if (method == "setProvider") {
         const auto provider = arguments["provider"].toString();
-        if (QStringList{"netease", "qq", "kugou", "local", "siren"}.contains(provider) &&
+        if (QStringList{"netease", "qq", "kugou", "local", "siren", "apple"}.contains(provider) &&
             m_api.provider != provider) {
             m_player.stop();
             m_host.setProvider(provider);

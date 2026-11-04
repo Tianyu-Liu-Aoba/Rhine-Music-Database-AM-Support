@@ -1,4 +1,5 @@
 #include "NativeHud.h"
+#include "AppleMusic.h"
 #include "AppUpdater.h"
 #include "DesktopLyricsAppearance.h"
 #include "Host.h"
@@ -279,6 +280,9 @@ void NativeHud::paintSettingsCustomSection(const QString &renderer, const QRectF
         } else if (m_music->isSiren()) {
             // 塞壬唱片使用官网曲库，没有账号登录入口。
             accountLabel = QStringLiteral("塞壬唱片");
+        } else if (m_music->isApple()) {
+            // Apple Music 只读取公开目录，不保存 Apple ID，也没有登录入口。
+            accountLabel = QStringLiteral("Apple Music / 公开目录");
         } else if (m_music->uid.isEmpty()) {
             accountLabel = QStringLiteral("登录 / ") + m_music->providerName();
             accountAction = "music:login";
@@ -293,15 +297,26 @@ void NativeHud::paintSettingsCustomSection(const QString &renderer, const QRectF
         } else {
             actionBlock(account, accountLabel, accountAction, accountLabel);
         }
+        if (m_music->isApple()) {
+            // 目录地区决定检索结果与封面链接；点击在常用地区间循环，写入偏好后立即清空缓存。
+            const auto storefront = m_host->preference("apple-storefront");
+            const auto shown = storefront.isEmpty() ? AppleMusic::defaultStorefront() : storefront;
+            const auto row = QRectF(body.left(), body.top() + 152, 320, 46);
+            actionBlock(row, QStringLiteral("目录地区 / ") + shown.toUpper(), "music:storefront",
+                        QStringLiteral("切换目录地区"));
+        }
         static const QHash<QString, QString> memberships{{"free", QStringLiteral("免费账号")},
                                                          {"green", QStringLiteral("绿钻会员")},
                                                          {"super", QStringLiteral("超级会员")},
                                                          {"unknown", QStringLiteral("会员状态未知")}};
-        const auto note = m_music->isSiren()
-                              ? QStringLiteral("官网曲库 / 无需登录")
-                              : (m_music->provider == "qq" && !m_music->uid.isEmpty()
-                                     ? memberships.value(m_music->vipLevel, QStringLiteral("会员状态未知"))
-                                     : QStringLiteral("各平台账号独立保存"));
+        const auto note =
+            m_music->isSiren()
+                ? QStringLiteral("官网曲库 / 无需登录")
+                : (m_music->isApple()
+                       ? QStringLiteral("公开目录 / 无需登录")
+                       : (m_music->provider == "qq" && !m_music->uid.isEmpty()
+                              ? memberships.value(m_music->vipLevel, QStringLiteral("会员状态未知"))
+                              : QStringLiteral("各平台账号独立保存")));
         text(fit(note, 12, body.right() - account.right() - 20, "regular"), account.right() + 16,
              body.top() + 114, 12, "regular", 0, muted);
         return;

@@ -15,6 +15,7 @@ const QVector<Provider> providers = [] {
         {"netease", "网易云音乐", "NETEASE", "搜索 · 个人音乐 · 推荐 · 播放 · 歌单编辑"},
         {"qq", "QQ 音乐", "QQ MUSIC", "全类搜索 · 每日推荐 · 个人音乐 · 歌单编辑"},
         {"kugou", "酷狗音乐", "KUGOU", "标准版 / 概念版 · 个人歌单 · 推荐与榜单 · 播放"},
+        {"apple", "Apple Music", "APPLE MUSIC", "公开目录检索 · 30 秒试听 · 跳转官方播放"},
         {"local", "本地音乐", "LOCAL", "文件夹管理 · 导入与索引 · 本地检索 · 播放"},
     };
     if (!PlatformFeatures::LocalMusic) {
@@ -319,7 +320,8 @@ const QHash<QString, QualityDescription> qualityDescriptions{
     {"ape", {"无损 / APE", "LOSSLESS / APE", "以 APE 格式提供无损音源", "sq"}},
     {"hires", {"高解析无损", "HI-RES AUDIO", "还原高解析录音中的丰富层次", "hires"}},
     {"jymaster", {"超清母带", "MASTER AUDIO", "聆听母带版本中的细腻质感与动态", "jymaster"}},
-    {"best", {"自动最高可用", "BEST AVAILABLE", "由平台选择当前可用的最高音质", ""}}};
+    {"best", {"自动最高可用", "BEST AVAILABLE", "由平台选择当前可用的最高音质", ""}},
+    {"preview", {"试听片段", "PREVIEW / 30S", "Apple Music 公开接口只交付 30 秒试听片段", ""}}};
 }
 
 /** 音质选项采用统一档案标记；重点档位展开为卡片，普通档位保持紧凑行高。 */
@@ -329,7 +331,9 @@ void NativeHud::qualityChoice(const QString &id, int number, double x, double y,
         m_music->provider == "siren" && id == "lossless"
             ? QualityDescription{"官网原始音源", "ORIGINAL SOURCE", "直接使用塞壬唱片官网提供的音源文件", ""}
             : qualityDescriptions.value(id);
-    const bool selected = m_music->isSiren() ? id == "lossless" : m_music->player.quality == id;
+    const bool selected = m_music->isSiren()
+                              ? id == "lossless"
+                              : (m_music->isApple() ? id == "preview" : m_music->player.quality == id);
     const auto height = featured ? 174. : 57.;
     const auto accent = dark ? QJsonArray{0.69, 0.74, 0.53, 1} : QJsonArray{0.43, 0.48, 0.34, 1};
     auto tint = accent;
@@ -398,8 +402,10 @@ void NativeHud::qualityPanel(double x, double y, double width) {
     fill(left, y + 195, 3, 48, accent);
     text("实际音源 / SOURCE", left + 17, y + 199, 10, "demibold", 0.6);
     text(actual, left + 17, y + 219, 18, "demibold");
-    const auto preference =
-        music.isSiren() ? QStringLiteral("官网原始音源") : qualityDescriptions.value(player.quality).title;
+    const auto preference = music.isSiren()
+                                ? QStringLiteral("官网原始音源")
+                                : (music.isApple() ? QStringLiteral("试听片段（30 秒）")
+                                                   : qualityDescriptions.value(player.quality).title);
     limited("已选偏好：" + preference, left + usable * 0.52, y + 219, 14, usable * 0.48);
     rule(left, y + 257, usable, 0.25);
     QStringList featured{"jymaster", "hires"};
@@ -407,7 +413,7 @@ void NativeHud::qualityPanel(double x, double y, double width) {
         featured = {"best", "lossless"};
     } else if (music.provider == "kugou") {
         featured = {"hires", "lossless"};
-    } else if (music.provider == "siren") {
+    } else if (music.provider == "siren" || music.provider == "apple") {
         featured = {};
     }
     const auto cardWidth = (usable - 18) / 2;

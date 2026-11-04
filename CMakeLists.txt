@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "14.4")
 endif()
-# 正式版本在构建前注入；开发版仅保留系统资源所需的数字占位。
+# æ­£å¼ç‰ˆæœ¬åœ¨æž„å»ºå‰æ³¨å…¥ï¼›å¼€å‘ç‰ˆä»…ä¿ç•™ç³»ç»Ÿèµ„æºæ‰€éœ€çš„æ•°å­—å ä½ã€‚
 set(RHINE_VERSION
     "0.0.0"
     CACHE STRING "Application release version")
@@ -16,13 +16,13 @@ project(
     # C is required by the vendored glslang/SPIRV-Tools that compiles the FidelityFX shader permutations at
     # build time.
     LANGUAGES CXX C)
-# 停用D3D12入口
+# åœç”¨D3D12å…¥å£
 set(RHINE_ENABLE_D3D12_BACKEND OFF)
 add_compile_definitions(RHINE_ENABLE_D3D12_BACKEND=$<BOOL:${RHINE_ENABLE_D3D12_BACKEND}>)
 set(RHINE_APPLICATION_ID "rhine.music.database")
 find_package(Git QUIET)
 set(RHINE_COMMIT_SHA "unknown")
-set(RHINE_COMMIT_TITLE "未知提交")
+set(RHINE_COMMIT_TITLE "æœªçŸ¥æäº¤")
 if(GIT_FOUND)
     execute_process(
         COMMAND "${GIT_EXECUTABLE}" log -1 --format=%h --abbrev=12
@@ -39,7 +39,7 @@ if(GIT_FOUND)
         set(RHINE_COMMIT_TITLE "${commitTitle}")
     endif()
 endif()
-# 提交标题可能包含引号和反斜杠，写入生成头文件前先转义 C++ 字符串。
+# æäº¤æ ‡é¢˜å¯èƒ½åŒ…å«å¼•å·å’Œåæ–œæ ï¼Œå†™å…¥ç”Ÿæˆå¤´æ–‡ä»¶å‰å…ˆè½¬ä¹‰ C++ å­—ç¬¦ä¸²ã€‚
 string(REPLACE "\\" "\\\\" RHINE_COMMIT_TITLE "${RHINE_COMMIT_TITLE}")
 string(REPLACE "\"" "\\\"" RHINE_COMMIT_TITLE "${RHINE_COMMIT_TITLE}")
 configure_file(Qt/BuildIdentity.h.in "${CMAKE_CURRENT_BINARY_DIR}/BuildIdentity.h" @ONLY)
@@ -67,7 +67,7 @@ if(NOT TARGET Qt6::MultimediaPrivate)
 endif()
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
-# 标签读取
+# æ ‡ç­¾è¯»å–
 include(FetchContent)
 set(BUILD_TESTING
     OFF
@@ -91,11 +91,23 @@ FetchContent_Declare(
     URL "${CMAKE_CURRENT_SOURCE_DIR}/vendor/taglib/taglib-2.1.1.tar.gz"
     URL_HASH SHA256=bd57924496a272322d6f9252502da4e620b6ab9777992e8934779ebd64babd6e)
 FetchContent_MakeAvailable(taglib)
-# AMD FidelityFX（FSR3 组件 + Vulkan 后端，DX12 仅在 Windows 下接入）。 SDK 目标由 RhineMusicDatabase 链接，见文件末尾的
-# FidelityFX::SDK 段。
+# AMD FidelityFXï¼ˆFSR3 ç»„ä»¶ + Vulkan åŽç«¯ï¼ŒDX12 ä»…åœ¨ Windows ä¸‹æŽ¥å…¥ï¼‰ã€‚ SDK ç›®æ ‡ç”± RhineMusicDatabase é“¾æŽ¥ï¼Œè§æ–‡ä»¶æœ«å°¾çš„
+# FidelityFX::SDK æ®µã€‚
 include(cmake/FidelityFX.cmake)
-# 自维护源码和锁定的二维码库构成独立应用目标。
+# è‡ªç»´æŠ¤æºç å’Œé”å®šçš„äºŒç»´ç åº“æž„æˆç‹¬ç«‹åº”ç”¨ç›®æ ‡ã€‚
 set(RHINE_APP_SOURCES
+    Qt/src/AppleCatalog.cpp
+    Qt/src/AppleCatalog.h
+    Qt/src/AppleData.cpp
+    Qt/src/AppleData.h
+    Qt/src/AppleMusic.cpp
+    Qt/src/AppleMusic.h
+    Qt/src/MediaSession.cpp
+    Qt/src/MediaSession.h
+    Qt/src/AppleQueue.cpp
+    Qt/src/AppleQueue.h
+    Qt/src/NowPlayingClient.cpp
+    Qt/src/NowPlayingClient.h
     Qt/src/AppUpdater.cpp
     Qt/src/AppUpdater.h
     Qt/src/AudioPlayer.cpp
@@ -243,14 +255,14 @@ if(APPLE)
     enable_language(OBJCXX)
     set(CMAKE_OBJCXX_STANDARD 20)
 endif()
-# 原生业务和场景由应用与独立回归共用，测试不需要复制整套源码目标。 FSR 与 FG 后端只被渲染器使用，跟 RhiScene 一起留在应用目标里，避免把 FidelityFX 与 Vulkan
-# 链接进每个回归测试。过滤条件必须同时覆盖 /fsr/ 与 /fg/：这两处的实现依赖 Qt6::Quick 与 GuiPrivate，而 RhineCore 只链
-# Core/Gui/Network/Concurrent/Multimedia。
+# åŽŸç”Ÿä¸šåŠ¡å’Œåœºæ™¯ç”±åº”ç”¨ä¸Žç‹¬ç«‹å›žå½’å…±ç”¨ï¼Œæµ‹è¯•ä¸éœ€è¦å¤åˆ¶æ•´å¥—æºç ç›®æ ‡ã€‚ FSR ä¸Ž FG åŽç«¯åªè¢«æ¸²æŸ“å™¨ä½¿ç”¨ï¼Œè·Ÿ RhiScene ä¸€èµ·ç•™åœ¨åº”ç”¨ç›®æ ‡é‡Œï¼Œé¿å…æŠŠ FidelityFX ä¸Ž Vulkan
+# é“¾æŽ¥è¿›æ¯ä¸ªå›žå½’æµ‹è¯•ã€‚è¿‡æ»¤æ¡ä»¶å¿…é¡»åŒæ—¶è¦†ç›– /fsr/ ä¸Ž /fg/ï¼šè¿™ä¸¤å¤„çš„å®žçŽ°ä¾èµ– Qt6::Quick ä¸Ž GuiPrivateï¼Œè€Œ RhineCore åªé“¾
+# Core/Gui/Network/Concurrent/Multimediaã€‚
 set(RHINE_CORE_SOURCES ${RHINE_APP_SOURCES})
 list(FILTER RHINE_CORE_SOURCES EXCLUDE REGEX
      "/(main|Engine|Icon|RhiScene|Hud|FrameProfiler)\\.(cpp|h)$|/tests/|/fsr/|/fg/|/render/")
 list(REMOVE_ITEM RHINE_APP_SOURCES ${RHINE_CORE_SOURCES})
-# 桌面后台只链接播放源码；场景、字形、资料库与 HUD 不进入服务二进制。
+# æ¡Œé¢åŽå°åªé“¾æŽ¥æ’­æ”¾æºç ï¼›åœºæ™¯ã€å­—å½¢ã€èµ„æ–™åº“ä¸Ž HUD ä¸è¿›å…¥æœåŠ¡äºŒè¿›åˆ¶ã€‚
 set(RHINE_SYSTEM_CORE RhineCore)
 if(NOT IOS)
     set(RHINE_PLAYBACK_SOURCES ${RHINE_CORE_SOURCES})
@@ -259,7 +271,7 @@ if(NOT IOS)
         RHINE_PLAYBACK_SOURCES
         INCLUDE
         REGEX
-        "/(AppUpdater|AppStorage|AudioPlayer|HttpAudioStream|PlaybackDiagnostics|PlaybackConnection|Host|MusicApi|MusicPlayer|PlaybackQueue|LyricsController|Platform)\\.(cpp|h)$|/qrcodegen\\.cpp$"
+        "/(AppUpdater|AppStorage|AudioPlayer|HttpAudioStream|PlaybackDiagnostics|PlaybackConnection|Host|MusicApi|MusicPlayer|PlaybackQueue|LyricsController|Platform|AppleCatalog|AppleData|AppleMusic|AppleQueue|MediaSession|NowPlayingClient|MusicData)\\.(cpp|h)$|/qrcodegen\\.cpp$"
     )
     list(REMOVE_ITEM RHINE_CORE_SOURCES ${RHINE_PLAYBACK_SOURCES})
     add_library(RhinePlaybackCore STATIC ${RHINE_PLAYBACK_SOURCES})
@@ -298,15 +310,15 @@ if(NOT IOS)
 endif()
 add_subdirectory(Qt)
 target_link_libraries(RhineMusicDatabase PRIVATE RhineCore)
-# 体积优化：随包的 97 个库都是 Qt 与发行版的 strip 二进制，编译参数无从下手，能自定义的只有这两个
-# 目标。Release 开 LTO，让链接期做跨翻译单元内联与死代码消除。
-# 刻意不加 -fvisibility=hidden：可执行文件本来就不导出符号，省不到 50 KB，却可能挡住 dlsym
-# 一类的自省路径，收益与风险倒挂。
+# ä½“ç§¯ä¼˜åŒ–ï¼šéšåŒ…çš„ 97 ä¸ªåº“éƒ½æ˜¯ Qt ä¸Žå‘è¡Œç‰ˆçš„ strip äºŒè¿›åˆ¶ï¼Œç¼–è¯‘å‚æ•°æ— ä»Žä¸‹æ‰‹ï¼Œèƒ½è‡ªå®šä¹‰çš„åªæœ‰è¿™ä¸¤ä¸ª
+# ç›®æ ‡ã€‚Release å¼€ LTOï¼Œè®©é“¾æŽ¥æœŸåšè·¨ç¿»è¯‘å•å…ƒå†…è”ä¸Žæ­»ä»£ç æ¶ˆé™¤ã€‚
+# åˆ»æ„ä¸åŠ  -fvisibility=hiddenï¼šå¯æ‰§è¡Œæ–‡ä»¶æœ¬æ¥å°±ä¸å¯¼å‡ºç¬¦å·ï¼Œçœä¸åˆ° 50 KBï¼Œå´å¯èƒ½æŒ¡ä½ dlsym
+# ä¸€ç±»çš„è‡ªçœè·¯å¾„ï¼Œæ”¶ç›Šä¸Žé£Žé™©å€’æŒ‚ã€‚
 #
-# LTO 要三样东西同时在位：编译器插件（GCC 的 liblto_plugin.so）、带插件的归档器
-# （gcc-ar/gcc-ranlib——RhineCore 是静态库，CMake 建库时会强制换成这两个），以及能加载插件的
-# 链接器。缺任一项 check_ipo_supported 只返回 NO，产物悄悄大 1.5 MB 而构建照常成功，因此这里
-# 默认打警告把降级暴露出来；RHINE_REQUIRE_LTO=1 把它升级为配置期错误，CI 的 Linux 任务用这个开关。
+# LTO è¦ä¸‰æ ·ä¸œè¥¿åŒæ—¶åœ¨ä½ï¼šç¼–è¯‘å™¨æ’ä»¶ï¼ˆGCC çš„ liblto_plugin.soï¼‰ã€å¸¦æ’ä»¶çš„å½’æ¡£å™¨
+# ï¼ˆgcc-ar/gcc-ranlibâ€”â€”RhineCore æ˜¯é™æ€åº“ï¼ŒCMake å»ºåº“æ—¶ä¼šå¼ºåˆ¶æ¢æˆè¿™ä¸¤ä¸ªï¼‰ï¼Œä»¥åŠèƒ½åŠ è½½æ’ä»¶çš„
+# é“¾æŽ¥å™¨ã€‚ç¼ºä»»ä¸€é¡¹ check_ipo_supported åªè¿”å›ž NOï¼Œäº§ç‰©æ‚„æ‚„å¤§ 1.5 MB è€Œæž„å»ºç…§å¸¸æˆåŠŸï¼Œå› æ­¤è¿™é‡Œ
+# é»˜è®¤æ‰“è­¦å‘ŠæŠŠé™çº§æš´éœ²å‡ºæ¥ï¼›RHINE_REQUIRE_LTO=1 æŠŠå®ƒå‡çº§ä¸ºé…ç½®æœŸé”™è¯¯ï¼ŒCI çš„ Linux ä»»åŠ¡ç”¨è¿™ä¸ªå¼€å…³ã€‚
 set(RHINE_REQUIRE_LTO OFF)
 if(DEFINED ENV{RHINE_REQUIRE_LTO} AND "$ENV{RHINE_REQUIRE_LTO}" MATCHES "^(1|[Oo][Nn]|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss])$")
     set(RHINE_REQUIRE_LTO ON)
@@ -331,22 +343,22 @@ else()
             "IPO/LTO unavailable, Release builds are not optimized across translation units"
             " (expect ~1.5 MB larger binaries).\n${RHINE_IPO_ERROR}")
 endif()
-# Linux 再按函数/数据切段，配合 --gc-sections 回收主程序里真正到不了的部分。
+# Linux å†æŒ‰å‡½æ•°/æ•°æ®åˆ‡æ®µï¼Œé…åˆ --gc-sections å›žæ”¶ä¸»ç¨‹åºé‡ŒçœŸæ­£åˆ°ä¸äº†çš„éƒ¨åˆ†ã€‚
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_compile_options(RhineCore PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(RhineMusicDatabase PRIVATE -ffunction-sections -fdata-sections)
     target_link_options(RhineMusicDatabase PRIVATE -Wl,--gc-sections)
 endif()
-# FSR 只挂在应用目标上：设置页要按编译期能力置灰，所以把可用性也传成宏。 FSR1 是纯着色器（EASU+RCAS），任何后端都能用；FSR3 需要 Vulkan 或 D3D12。
+# FSR åªæŒ‚åœ¨åº”ç”¨ç›®æ ‡ä¸Šï¼šè®¾ç½®é¡µè¦æŒ‰ç¼–è¯‘æœŸèƒ½åŠ›ç½®ç°ï¼Œæ‰€ä»¥æŠŠå¯ç”¨æ€§ä¹Ÿä¼ æˆå®ã€‚ FSR1 æ˜¯çº¯ç€è‰²å™¨ï¼ˆEASU+RCASï¼‰ï¼Œä»»ä½•åŽç«¯éƒ½èƒ½ç”¨ï¼›FSR3 éœ€è¦ Vulkan æˆ– D3D12ã€‚
 if(TARGET FidelityFX::SDK)
     target_link_libraries(RhineMusicDatabase PRIVATE FidelityFX::SDK)
 endif()
 if(RHINE_FFX_VK_AVAILABLE AND RHINE_FFX_SHADER_BLOBS_AVAILABLE)
     target_compile_definitions(RhineMusicDatabase PRIVATE RHINE_FSR3_VULKAN=1)
-    # 设置页编在 RhineCore 里，只凭"后端名"猜不出构建是否真编进了 FSR3：同一个后端 在不同构建配置下可能可用也可能不可用。把能力宏一并传给 RhineCore，让置灰逻辑
-    # 按实际编译结果判断。这里只传宏，不链接 FidelityFX。
+    # è®¾ç½®é¡µç¼–åœ¨ RhineCore é‡Œï¼Œåªå‡­"åŽç«¯å"çŒœä¸å‡ºæž„å»ºæ˜¯å¦çœŸç¼–è¿›äº† FSR3ï¼šåŒä¸€ä¸ªåŽç«¯ åœ¨ä¸åŒæž„å»ºé…ç½®ä¸‹å¯èƒ½å¯ç”¨ä¹Ÿå¯èƒ½ä¸å¯ç”¨ã€‚æŠŠèƒ½åŠ›å®ä¸€å¹¶ä¼ ç»™ RhineCoreï¼Œè®©ç½®ç°é€»è¾‘
+    # æŒ‰å®žé™…ç¼–è¯‘ç»“æžœåˆ¤æ–­ã€‚è¿™é‡Œåªä¼ å®ï¼Œä¸é“¾æŽ¥ FidelityFXã€‚
     target_compile_definitions(RhineCore PRIVATE RHINE_FSR3_VULKAN=1)
-    # 保持 Vulkan 呈现原有的构建门控，只把设备/交换链操作移入适配器。
+    # ä¿æŒ Vulkan å‘ˆçŽ°åŽŸæœ‰çš„æž„å»ºé—¨æŽ§ï¼ŒåªæŠŠè®¾å¤‡/äº¤æ¢é“¾æ“ä½œç§»å…¥é€‚é…å™¨ã€‚
     target_compile_definitions(RhineMusicDatabase PRIVATE RHINE_VULKAN_PRESENTATION=1)
     target_sources(RhineMusicDatabase PRIVATE Qt/src/fg/VulkanPresenter.cpp Qt/src/fg/VulkanPresenter.h
                                               Qt/src/render/VulkanPresentationBackend.cpp)
@@ -382,7 +394,7 @@ qt_add_resources(
     Assets/icons/icon-256.png
     Assets/icons/icon-512.png
     Assets/icons/icon-1024.png)
-# 着色器按原通道顺序打包，所有后端使用同一份公式。 GLSL 130 兼容 Windows 随包的软件 OpenGL，其他后端仍保留原有版本。
+# ç€è‰²å™¨æŒ‰åŽŸé€šé“é¡ºåºæ‰“åŒ…ï¼Œæ‰€æœ‰åŽç«¯ä½¿ç”¨åŒä¸€ä»½å…¬å¼ã€‚ GLSL 130 å…¼å®¹ Windows éšåŒ…çš„è½¯ä»¶ OpenGLï¼Œå…¶ä»–åŽç«¯ä»ä¿ç•™åŽŸæœ‰ç‰ˆæœ¬ã€‚
 qt_add_shaders(
     RhineMusicDatabase
     "rhine_shaders"
@@ -407,7 +419,7 @@ qt_add_shaders(
     Qt/shaders/fsr1_rcas.frag
     Qt/shaders/fgComposite.vert
     Qt/shaders/fgComposite.frag)
-# 唯一场景的烘焙材质与最终合成着色器
+# å”¯ä¸€åœºæ™¯çš„çƒ˜ç„™æè´¨ä¸Žæœ€ç»ˆåˆæˆç€è‰²å™¨
 set(RHINE_OPTICAL_SHADER_DEFINES)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR APPLE)
     list(APPEND RHINE_OPTICAL_SHADER_DEFINES RHINE_SINGLE_PASS_MOTION=1)
@@ -415,8 +427,8 @@ endif()
 if(APPLE)
     list(APPEND RHINE_OPTICAL_SHADER_DEFINES RHINE_METAL_MOTION=1)
 endif()
-# E05a：紧凑实例（80 字节）的第二套着色器烘焙放在独立子目录：
-# qt_add_shaders 把 .qsb 写到当前二进制目录的 .qsb/ 下，同一目录对同一份源码烘两次会撞规则。
+# E05aï¼šç´§å‡‘å®žä¾‹ï¼ˆ80 å­—èŠ‚ï¼‰çš„ç¬¬äºŒå¥—ç€è‰²å™¨çƒ˜ç„™æ”¾åœ¨ç‹¬ç«‹å­ç›®å½•ï¼š
+# qt_add_shaders æŠŠ .qsb å†™åˆ°å½“å‰äºŒè¿›åˆ¶ç›®å½•çš„ .qsb/ ä¸‹ï¼ŒåŒä¸€ç›®å½•å¯¹åŒä¸€ä»½æºç çƒ˜ä¸¤æ¬¡ä¼šæ’žè§„åˆ™ã€‚
 add_subdirectory(Qt/shaders/compact)
 if(APPLE)
     add_subdirectory(Qt/shaders/metal-temporal)
@@ -458,7 +470,7 @@ target_link_libraries(
             Qt6::Network
             Qt6::Concurrent
             Qt6::Multimedia)
-# 平台分支只处理原生能力、部署身份及链接依赖。
+# å¹³å°åˆ†æ”¯åªå¤„ç†åŽŸç”Ÿèƒ½åŠ›ã€éƒ¨ç½²èº«ä»½åŠé“¾æŽ¥ä¾èµ–ã€‚
 if(NOT IOS)
     target_sources(RhineMusicDatabase PRIVATE Qt/tests/PlaybackServiceChecks.cpp
                                               Qt/tests/WindowTransitionChecks.cpp)
@@ -467,7 +479,7 @@ if(NOT IOS)
         target_sources(RhineMusicDatabase PRIVATE Qt/src/DesktopTray.cpp Qt/src/DesktopTray.h)
         target_link_libraries(RhineMusicDatabase PRIVATE Qt6::Widgets)
     endif()
-    # 后台可执行文件不链接 Qt Quick、QML 或任何渲染资源。
+    # åŽå°å¯æ‰§è¡Œæ–‡ä»¶ä¸é“¾æŽ¥ Qt Quickã€QML æˆ–ä»»ä½•æ¸²æŸ“èµ„æºã€‚
     qt_add_executable(
         RhinePlaybackService
         WIN32
@@ -513,7 +525,7 @@ if(NOT IOS)
         target_compile_options(RhinePlaybackService PRIVATE /utf-8)
     endif()
     if(APPLE)
-        # helper 跟随主包一起签名和部署；主目标的打包钩子执行前必须已完成构建。
+        # helper è·Ÿéšä¸»åŒ…ä¸€èµ·ç­¾åå’Œéƒ¨ç½²ï¼›ä¸»ç›®æ ‡çš„æ‰“åŒ…é’©å­æ‰§è¡Œå‰å¿…é¡»å·²å®Œæˆæž„å»ºã€‚
         set_target_properties(
             RhinePlaybackService
             PROPERTIES MACOSX_BUNDLE TRUE
@@ -531,7 +543,7 @@ if(APPLE)
                                               Qt/src/render/MetalTemporalResolve.h
                                               Qt/src/render/FrameGenerator.h Qt/src/render/SceneResources.h)
     target_link_libraries(RhineMusicDatabase PRIVATE "-framework Metal")
-    # iOS 模拟器 SDK 不带 MetalFX，仍构建共用呈现层并报告原生效果不可用。
+    # iOS æ¨¡æ‹Ÿå™¨ SDK ä¸å¸¦ MetalFXï¼Œä»æž„å»ºå…±ç”¨å‘ˆçŽ°å±‚å¹¶æŠ¥å‘ŠåŽŸç”Ÿæ•ˆæžœä¸å¯ç”¨ã€‚
     find_library(RHINE_METALFX_FRAMEWORK MetalFX)
     if(RHINE_METALFX_FRAMEWORK)
         target_link_libraries(RhineMusicDatabase PRIVATE "-weak_framework MetalFX")
@@ -562,9 +574,9 @@ elseif(WIN32)
     if(RHINE_ENABLE_D3D12_BACKEND)
         target_link_libraries(RhineMusicDatabase PRIVATE d3d12)
     endif()
-    # ffx_backend_vk 链接了 Vulkan 导入库，而该依赖 PUBLIC 传播到本目标，于是 vulkan-1.dll 成了加载期依赖。这与 README 承诺的「Vulkan
-    # 不可用时回退平台默认」 直接矛盾：缺少 Vulkan 运行库的机器（CI runner、虚拟机、远程桌面）会在进程启动 阶段就拿到 0xc0000135，main.cpp 里的
-    # vulkanDeviceAvailable() 探测和回退逻辑 根本没机会执行。改成延迟加载：不调用 Vulkan 就不加载，探测失败就正常回退。
+    # ffx_backend_vk é“¾æŽ¥äº† Vulkan å¯¼å…¥åº“ï¼Œè€Œè¯¥ä¾èµ– PUBLIC ä¼ æ’­åˆ°æœ¬ç›®æ ‡ï¼ŒäºŽæ˜¯ vulkan-1.dll æˆäº†åŠ è½½æœŸä¾èµ–ã€‚è¿™ä¸Ž README æ‰¿è¯ºçš„ã€ŒVulkan
+    # ä¸å¯ç”¨æ—¶å›žé€€å¹³å°é»˜è®¤ã€ ç›´æŽ¥çŸ›ç›¾ï¼šç¼ºå°‘ Vulkan è¿è¡Œåº“çš„æœºå™¨ï¼ˆCI runnerã€è™šæ‹Ÿæœºã€è¿œç¨‹æ¡Œé¢ï¼‰ä¼šåœ¨è¿›ç¨‹å¯åŠ¨ é˜¶æ®µå°±æ‹¿åˆ° 0xc0000135ï¼Œmain.cpp é‡Œçš„
+    # vulkanDeviceAvailable() æŽ¢æµ‹å’Œå›žé€€é€»è¾‘ æ ¹æœ¬æ²¡æœºä¼šæ‰§è¡Œã€‚æ”¹æˆå»¶è¿ŸåŠ è½½ï¼šä¸è°ƒç”¨ Vulkan å°±ä¸åŠ è½½ï¼ŒæŽ¢æµ‹å¤±è´¥å°±æ­£å¸¸å›žé€€ã€‚
     if(MSVC AND RHINE_FFX_VK_AVAILABLE)
         target_link_options(RhineMusicDatabase PRIVATE "/DELAYLOAD:vulkan-1.dll")
         target_link_libraries(RhineMusicDatabase PRIVATE delayimp)
@@ -578,27 +590,27 @@ elseif(WIN32)
     target_compile_options(RhineMusicDatabase PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
     target_compile_options(RhineCore PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 elseif(UNIX)
-    # Linux 复用同一份原生场景实现；凭据、协议交付和媒体集成由本平台文件补齐。
+    # Linux å¤ç”¨åŒä¸€ä»½åŽŸç”Ÿåœºæ™¯å®žçŽ°ï¼›å‡­æ®ã€åè®®äº¤ä»˜å’Œåª’ä½“é›†æˆç”±æœ¬å¹³å°æ–‡ä»¶è¡¥é½ã€‚
     target_sources(${RHINE_SYSTEM_CORE} PRIVATE Qt/src/PlatformLinux.cpp)
-    # 显卡选择：Windows 那条直路是 DXGI + QT_D3D_ADAPTER_INDEX，Linux 只能把序号翻译成 驱动认识的环境变量，且必须在 QGuiApplication
-    # 之前完成，所以单独成文件、只挂主程序。
+    # æ˜¾å¡é€‰æ‹©ï¼šWindows é‚£æ¡ç›´è·¯æ˜¯ DXGI + QT_D3D_ADAPTER_INDEXï¼ŒLinux åªèƒ½æŠŠåºå·ç¿»è¯‘æˆ é©±åŠ¨è®¤è¯†çš„çŽ¯å¢ƒå˜é‡ï¼Œä¸”å¿…é¡»åœ¨ QGuiApplication
+    # ä¹‹å‰å®Œæˆï¼Œæ‰€ä»¥å•ç‹¬æˆæ–‡ä»¶ã€åªæŒ‚ä¸»ç¨‹åºã€‚
     target_sources(RhineMusicDatabase PRIVATE Qt/src/LinuxGraphics.cpp)
-    # Vulkan 呈现能力探测（DRI3）：只挂主程序，X11 相关逻辑不进入播放服务。
+    # Vulkan å‘ˆçŽ°èƒ½åŠ›æŽ¢æµ‹ï¼ˆDRI3ï¼‰ï¼šåªæŒ‚ä¸»ç¨‹åºï¼ŒX11 ç›¸å…³é€»è¾‘ä¸è¿›å…¥æ’­æ”¾æœåŠ¡ã€‚
     target_sources(RhineMusicDatabase PRIVATE Qt/src/LinuxX11.cpp Qt/src/LinuxX11.h)
-    # 安装后的程序按 AppImage 前缀查找同级 Qt 运行时；构建树仍用 CMake 生成的 kit 路径， 否则 CI 中装在独立目录的 Qt 会在运行测试时找不到。
+    # å®‰è£…åŽçš„ç¨‹åºæŒ‰ AppImage å‰ç¼€æŸ¥æ‰¾åŒçº§ Qt è¿è¡Œæ—¶ï¼›æž„å»ºæ ‘ä»ç”¨ CMake ç”Ÿæˆçš„ kit è·¯å¾„ï¼Œ å¦åˆ™ CI ä¸­è£…åœ¨ç‹¬ç«‹ç›®å½•çš„ Qt ä¼šåœ¨è¿è¡Œæµ‹è¯•æ—¶æ‰¾ä¸åˆ°ã€‚
     set_target_properties(RhineMusicDatabase PROPERTIES INSTALL_RPATH "\$ORIGIN/../lib")
     install(TARGETS RhineMusicDatabase RUNTIME DESTINATION bin)
 else()
     message(FATAL_ERROR "Supported desktop platforms are macOS, Linux and Windows")
 endif()
-# Qt Creator 的普通构建也交付完整应用，不能依赖运行目录里的 output/resources。
+# Qt Creator çš„æ™®é€šæž„å»ºä¹Ÿäº¤ä»˜å®Œæ•´åº”ç”¨ï¼Œä¸èƒ½ä¾èµ–è¿è¡Œç›®å½•é‡Œçš„ output/resourcesã€‚
 option(RHINE_PACKAGE_APP "Package resources and Qt libraries after a macOS CMake build" ON)
 if(APPLE
    AND NOT IOS
    AND RHINE_PACKAGE_APP)
     find_program(RHINE_NPM_EXECUTABLE NAMES npm REQUIRED)
     get_filename_component(RHINE_QT_KIT "${Qt6_DIR}/../../.." ABSOLUTE)
-    # 脚本、字体和场景数据改变时重新链接，确保 POST_BUILD 重新生成部署资源。
+    # è„šæœ¬ã€å­—ä½“å’Œåœºæ™¯æ•°æ®æ”¹å˜æ—¶é‡æ–°é“¾æŽ¥ï¼Œç¡®ä¿ POST_BUILD é‡æ–°ç”Ÿæˆéƒ¨ç½²èµ„æºã€‚
     file(
         GLOB_RECURSE
         RHINE_RESOURCE_INPUTS
@@ -625,7 +637,7 @@ if(APPLE
         VERBATIM)
 endif()
 qt_finalize_executable(RhineMusicDatabase)
-# 桌面回归包含子进程和桌面路径，iOS 只构建正式应用。
+# æ¡Œé¢å›žå½’åŒ…å«å­è¿›ç¨‹å’Œæ¡Œé¢è·¯å¾„ï¼ŒiOS åªæž„å»ºæ­£å¼åº”ç”¨ã€‚
 if(IOS)
     return()
 endif()
@@ -649,7 +661,7 @@ if(WIN32)
     target_compile_definitions(RhinePlatformRegression PRIVATE RHINE_APPLICATION_ID="${RHINE_APPLICATION_ID}")
     target_compile_options(RhinePlatformRegression PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 elseif(UNIX)
-    # 凭据文件的位置和权限随平台不同，回归测试直接使用真实实现而不是桩。
+    # å‡­æ®æ–‡ä»¶çš„ä½ç½®å’Œæƒé™éšå¹³å°ä¸åŒï¼Œå›žå½’æµ‹è¯•ç›´æŽ¥ä½¿ç”¨çœŸå®žå®žçŽ°è€Œä¸æ˜¯æ¡©ã€‚
     target_sources(RhinePlatformRegression PRIVATE Qt/src/PlatformLinux.cpp)
 endif()
 add_test(NAME qt_platform_regression COMMAND RhinePlatformRegression
@@ -657,7 +669,7 @@ add_test(NAME qt_platform_regression COMMAND RhinePlatformRegression
 set_tests_properties(qt_platform_regression PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 qt_add_executable(RhineInputMethodRegression Qt/tests/InputMethodChecks.cpp
                   Qt/src/render/PresentationWindow.cpp Qt/src/render/PresentationWindow.h)
-# 测试在内存中创建 QML；动态 Qt kit 直接加载插件，无需递归扫描仓库和部署产物。
+# æµ‹è¯•åœ¨å†…å­˜ä¸­åˆ›å»º QMLï¼›åŠ¨æ€ Qt kit ç›´æŽ¥åŠ è½½æ’ä»¶ï¼Œæ— éœ€é€’å½’æ‰«æä»“åº“å’Œéƒ¨ç½²äº§ç‰©ã€‚
 set_target_properties(RhineInputMethodRegression PROPERTIES QT_QML_MODULE_NO_IMPORT_SCAN TRUE)
 target_include_directories(RhineInputMethodRegression PRIVATE Qt/src)
 target_link_libraries(RhineInputMethodRegression PRIVATE Qt6::Quick)
@@ -672,7 +684,7 @@ if(MSVC)
     target_compile_options(RhineAudioPlaybackRegression PRIVATE /utf-8)
 endif()
 add_test(NAME qt_audio_playback_regression COMMAND RhineAudioPlaybackRegression)
-# 帧生成的纯逻辑（环境变量解析、能力快照、设置页三态、帧输入投递）不碰 GPU， 所以全平台都编、都跑：门控写错的后果是"该置灰的放开了"，只有用例拦得住。
+# å¸§ç”Ÿæˆçš„çº¯é€»è¾‘ï¼ˆçŽ¯å¢ƒå˜é‡è§£æžã€èƒ½åŠ›å¿«ç…§ã€è®¾ç½®é¡µä¸‰æ€ã€å¸§è¾“å…¥æŠ•é€’ï¼‰ä¸ç¢° GPUï¼Œ æ‰€ä»¥å…¨å¹³å°éƒ½ç¼–ã€éƒ½è·‘ï¼šé—¨æŽ§å†™é”™çš„åŽæžœæ˜¯"è¯¥ç½®ç°çš„æ”¾å¼€äº†"ï¼Œåªæœ‰ç”¨ä¾‹æ‹¦å¾—ä½ã€‚
 qt_add_executable(RhineFgCapabilityRegression Qt/tests/FgCapabilityChecks.cpp)
 target_include_directories(RhineFgCapabilityRegression PRIVATE Qt/src)
 target_link_libraries(RhineFgCapabilityRegression PRIVATE Qt6::Core)
@@ -681,8 +693,8 @@ if(MSVC)
 endif()
 add_test(NAME qt_fg_capability_regression COMMAND RhineFgCapabilityRegression)
 
-# 渲染策略里能离线判定的那一半（GPU 计时四态、时间戳登记、AA 模式是否需要运动矢量）是 header-only 纯逻辑，
-# 不碰 QRhi/窗口，所以三平台都编、都跑：真值表写错不会崩，只会让面板把"没请求"说成"没样本"，只有用例拦得住。
+# æ¸²æŸ“ç­–ç•¥é‡Œèƒ½ç¦»çº¿åˆ¤å®šçš„é‚£ä¸€åŠï¼ˆGPU è®¡æ—¶å››æ€ã€æ—¶é—´æˆ³ç™»è®°ã€AA æ¨¡å¼æ˜¯å¦éœ€è¦è¿åŠ¨çŸ¢é‡ï¼‰æ˜¯ header-only çº¯é€»è¾‘ï¼Œ
+# ä¸ç¢° QRhi/çª—å£ï¼Œæ‰€ä»¥ä¸‰å¹³å°éƒ½ç¼–ã€éƒ½è·‘ï¼šçœŸå€¼è¡¨å†™é”™ä¸ä¼šå´©ï¼Œåªä¼šè®©é¢æ¿æŠŠ"æ²¡è¯·æ±‚"è¯´æˆ"æ²¡æ ·æœ¬"ï¼Œåªæœ‰ç”¨ä¾‹æ‹¦å¾—ä½ã€‚
 qt_add_executable(RhineRenderPolicyRegression Qt/tests/RenderChecks.cpp)
 target_include_directories(RhineRenderPolicyRegression PRIVATE Qt/src)
 target_link_libraries(RhineRenderPolicyRegression PRIVATE Qt6::Core)
@@ -692,16 +704,16 @@ endif()
 add_test(NAME qt_render_policy_regression COMMAND RhineRenderPolicyRegression)
 
 if(APPLE)
-    # 渲染帧历史不依赖窗口，覆盖稳定 ID 重排、集合增删、矩阵截断与重置。
+    # æ¸²æŸ“å¸§åŽ†å²ä¸ä¾èµ–çª—å£ï¼Œè¦†ç›–ç¨³å®š ID é‡æŽ’ã€é›†åˆå¢žåˆ ã€çŸ©é˜µæˆªæ–­ä¸Žé‡ç½®ã€‚
     qt_add_executable(RhineSceneTransformHistoryRegression Qt/tests/SceneTransformHistoryChecks.cpp)
     target_include_directories(RhineSceneTransformHistoryRegression PRIVATE Qt/src)
     target_link_libraries(RhineSceneTransformHistoryRegression PRIVATE Qt6::Core Qt6::Gui)
     add_test(NAME qt_scene_transform_history_regression COMMAND RhineSceneTransformHistoryRegression)
 endif()
 
-# 快速滚动的冷纹理准入（B01）与封面需求账本（B03）是 header-only 纯逻辑，不碰 QRhi/窗口：
-# 边界差 1ms、逻辑取消提前归还名额都不会崩，只会让界面变慢或并发慢慢失控，只能靠用例拦。
-# 计时器用例需要事件循环，所以在 main 里建 QCoreApplication（不建 GUI）。
+# å¿«é€Ÿæ»šåŠ¨çš„å†·çº¹ç†å‡†å…¥ï¼ˆB01ï¼‰ä¸Žå°é¢éœ€æ±‚è´¦æœ¬ï¼ˆB03ï¼‰æ˜¯ header-only çº¯é€»è¾‘ï¼Œä¸ç¢° QRhi/çª—å£ï¼š
+# è¾¹ç•Œå·® 1msã€é€»è¾‘å–æ¶ˆæå‰å½’è¿˜åé¢éƒ½ä¸ä¼šå´©ï¼Œåªä¼šè®©ç•Œé¢å˜æ…¢æˆ–å¹¶å‘æ…¢æ…¢å¤±æŽ§ï¼Œåªèƒ½é ç”¨ä¾‹æ‹¦ã€‚
+# è®¡æ—¶å™¨ç”¨ä¾‹éœ€è¦äº‹ä»¶å¾ªçŽ¯ï¼Œæ‰€ä»¥åœ¨ main é‡Œå»º QCoreApplicationï¼ˆä¸å»º GUIï¼‰ã€‚
 qt_add_executable(RhineMusicTextureAdmissionRegression Qt/tests/MusicTextureAdmissionChecks.cpp)
 target_include_directories(RhineMusicTextureAdmissionRegression PRIVATE Qt/src)
 target_link_libraries(RhineMusicTextureAdmissionRegression PRIVATE Qt6::Core)
@@ -710,8 +722,8 @@ if(MSVC)
 endif()
 add_test(NAME qt_music_texture_admission_regression COMMAND RhineMusicTextureAdmissionRegression)
 
-# C04：用"发布／消费"序号合并过量完整 step 是 header-only 纯策略，不读时钟、不接事件循环。
-# 写错的后果不是崩溃：要么白白多算一份会被覆盖的中间状态，要么动画停在半路，只能靠用例拦。
+# C04ï¼šç”¨"å‘å¸ƒï¼æ¶ˆè´¹"åºå·åˆå¹¶è¿‡é‡å®Œæ•´ step æ˜¯ header-only çº¯ç­–ç•¥ï¼Œä¸è¯»æ—¶é’Ÿã€ä¸æŽ¥äº‹ä»¶å¾ªçŽ¯ã€‚
+# å†™é”™çš„åŽæžœä¸æ˜¯å´©æºƒï¼šè¦ä¹ˆç™½ç™½å¤šç®—ä¸€ä»½ä¼šè¢«è¦†ç›–çš„ä¸­é—´çŠ¶æ€ï¼Œè¦ä¹ˆåŠ¨ç”»åœåœ¨åŠè·¯ï¼Œåªèƒ½é ç”¨ä¾‹æ‹¦ã€‚
 qt_add_executable(RhineFramePacingRegression Qt/tests/FramePacingChecks.cpp)
 target_include_directories(RhineFramePacingRegression PRIVATE Qt/src)
 target_link_libraries(RhineFramePacingRegression PRIVATE Qt6::Core)
@@ -720,8 +732,8 @@ if(MSVC)
 endif()
 add_test(NAME qt_frame_pacing_regression COMMAND RhineFramePacingRegression)
 
-# D06：Vulkan 资源策略的纯用例（arena 步长/动态偏移/实例池/深度消费者/缓存代号）。
-# 只依赖 Qt6::Core，不建 QGuiApplication，也不碰 VkDevice——离线就能跑。
+# D06ï¼šVulkan èµ„æºç­–ç•¥çš„çº¯ç”¨ä¾‹ï¼ˆarena æ­¥é•¿/åŠ¨æ€åç§»/å®žä¾‹æ± /æ·±åº¦æ¶ˆè´¹è€…/ç¼“å­˜ä»£å·ï¼‰ã€‚
+# åªä¾èµ– Qt6::Coreï¼Œä¸å»º QGuiApplicationï¼Œä¹Ÿä¸ç¢° VkDeviceâ€”â€”ç¦»çº¿å°±èƒ½è·‘ã€‚
 qt_add_executable(RhineVulkanResourceRegression Qt/tests/VulkanResourceChecks.cpp)
 target_include_directories(RhineVulkanResourceRegression PRIVATE Qt/src)
 target_link_libraries(RhineVulkanResourceRegression PRIVATE Qt6::Core)
@@ -735,8 +747,8 @@ target_include_directories(RhineSceneLifetimeRegression PRIVATE Qt/src)
 target_link_libraries(RhineSceneLifetimeRegression PRIVATE Qt6::Core)
 add_test(NAME qt_scene_lifetime_regression COMMAND RhineSceneLifetimeRegression)
 
-# Linux 显卡选择里能离线验证的部分：PCI 地址解析、序号 → 环境变量的映射、序号失效时的回退。 写错的后果是"选错卡"或"配置失效后仍注入变量"，只能靠用例拦。三平台都编， sysfs
-# 相关用例在源码里按平台裁剪。
+# Linux æ˜¾å¡é€‰æ‹©é‡Œèƒ½ç¦»çº¿éªŒè¯çš„éƒ¨åˆ†ï¼šPCI åœ°å€è§£æžã€åºå· â†’ çŽ¯å¢ƒå˜é‡çš„æ˜ å°„ã€åºå·å¤±æ•ˆæ—¶çš„å›žé€€ã€‚ å†™é”™çš„åŽæžœæ˜¯"é€‰é”™å¡"æˆ–"é…ç½®å¤±æ•ˆåŽä»æ³¨å…¥å˜é‡"ï¼Œåªèƒ½é ç”¨ä¾‹æ‹¦ã€‚ä¸‰å¹³å°éƒ½ç¼–ï¼Œ sysfs
+# ç›¸å…³ç”¨ä¾‹åœ¨æºç é‡ŒæŒ‰å¹³å°è£å‰ªã€‚
 qt_add_executable(RhineGpuChoiceRegression Qt/tests/LinuxGpuChecks.cpp Qt/src/LinuxGraphics.cpp
                   Qt/src/AppStorage.cpp)
 target_include_directories(RhineGpuChoiceRegression PRIVATE Qt/src)
@@ -746,8 +758,8 @@ if(MSVC)
 endif()
 add_test(NAME qt_gpu_choice_regression COMMAND RhineGpuChoiceRegression)
 
-# X11 呈现能力判定：缺 DRI3 时不能上 Vulkan（否则 Qt 创建交换链失败后直接 abort）。
-# 纯函数 + 无 DISPLAY 的探测冒烟，不需要 X 服务器，三平台都编。
+# X11 å‘ˆçŽ°èƒ½åŠ›åˆ¤å®šï¼šç¼º DRI3 æ—¶ä¸èƒ½ä¸Š Vulkanï¼ˆå¦åˆ™ Qt åˆ›å»ºäº¤æ¢é“¾å¤±è´¥åŽç›´æŽ¥ abortï¼‰ã€‚
+# çº¯å‡½æ•° + æ—  DISPLAY çš„æŽ¢æµ‹å†’çƒŸï¼Œä¸éœ€è¦ X æœåŠ¡å™¨ï¼Œä¸‰å¹³å°éƒ½ç¼–ã€‚
 qt_add_executable(RhineLinuxDisplayRegression Qt/tests/LinuxDisplayChecks.cpp Qt/src/LinuxX11.cpp)
 target_include_directories(RhineLinuxDisplayRegression PRIVATE Qt/src)
 target_link_libraries(RhineLinuxDisplayRegression PRIVATE Qt6::Core)
@@ -778,7 +790,7 @@ endif()
 add_test(NAME qt_glyphs_regression COMMAND RhineGlyphsRegression
                                            "${CMAKE_CURRENT_SOURCE_DIR}/output/resources")
 if(WIN32)
-    # offscreen 插件不使用 Windows 字体库，缺字回退需要原生平台插件；测试本身不创建窗口。
+    # offscreen æ’ä»¶ä¸ä½¿ç”¨ Windows å­—ä½“åº“ï¼Œç¼ºå­—å›žé€€éœ€è¦åŽŸç”Ÿå¹³å°æ’ä»¶ï¼›æµ‹è¯•æœ¬èº«ä¸åˆ›å»ºçª—å£ã€‚
     set_tests_properties(qt_glyphs_regression PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows")
 else()
     set_tests_properties(qt_glyphs_regression PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -818,11 +830,19 @@ if(MSVC)
 endif()
 add_test(NAME qt_playback_queue_regression COMMAND RhinePlaybackQueueRegression)
 
-# FG 闸门探针：验证「setQueueSubmitParams 对离屏帧生效」与「共享 device 上能建交换链」。 需要真实 GPU + 显示服务（或 xvfb + lavapipe），CI runner 没有
-# GPU，所以**不进默认 CTest 集合**：构建后用 `output/qt-build/RhineFgGateProbe` 手动运行，用它给出 "FG 架构成不成立"的硬结论。
+# Apple Music å…¬å¼€ç›®å½•ï¼šæ¡ç›®æ˜ å°„ã€åˆ†é¡µè¾¹ç•Œä¸Žåªè¯»æŽ¥å£çš„ç¦»çº¿å›žå½’ã€‚
+qt_add_executable(RhineAppleMusicRegression Qt/tests/AppleMusicChecks.cpp)
+target_link_libraries(RhineAppleMusicRegression PRIVATE RhineCore)
+if(MSVC)
+    target_compile_options(RhineAppleMusicRegression PRIVATE /utf-8)
+endif()
+add_test(NAME qt_apple_music_regression COMMAND RhineAppleMusicRegression)
+
+# FG é—¸é—¨æŽ¢é’ˆï¼šéªŒè¯ã€ŒsetQueueSubmitParams å¯¹ç¦»å±å¸§ç”Ÿæ•ˆã€ä¸Žã€Œå…±äº« device ä¸Šèƒ½å»ºäº¤æ¢é“¾ã€ã€‚ éœ€è¦çœŸå®ž GPU + æ˜¾ç¤ºæœåŠ¡ï¼ˆæˆ– xvfb + lavapipeï¼‰ï¼ŒCI runner æ²¡æœ‰
+# GPUï¼Œæ‰€ä»¥**ä¸è¿›é»˜è®¤ CTest é›†åˆ**ï¼šæž„å»ºåŽç”¨ `output/qt-build/RhineFgGateProbe` æ‰‹åŠ¨è¿è¡Œï¼Œç”¨å®ƒç»™å‡º "FG æž¶æž„æˆä¸æˆç«‹"çš„ç¡¬ç»“è®ºã€‚
 if(RHINE_FFX_VK_AVAILABLE AND TARGET Qt6::GuiPrivate)
-    # EXCLUDE_FROM_ALL：这是排障用的一次性探针，不该占用默认构建与 CI 的时间。 需要时显式 cmake --build output/qt-build --target
-    # RhineFgGateProbe。
+    # EXCLUDE_FROM_ALLï¼šè¿™æ˜¯æŽ’éšœç”¨çš„ä¸€æ¬¡æ€§æŽ¢é’ˆï¼Œä¸è¯¥å ç”¨é»˜è®¤æž„å»ºä¸Ž CI çš„æ—¶é—´ã€‚ éœ€è¦æ—¶æ˜¾å¼ cmake --build output/qt-build --target
+    # RhineFgGateProbeã€‚
     qt_add_executable(RhineFgGateProbe Qt/tests/FgGateProbe.cpp)
     set_target_properties(RhineFgGateProbe PROPERTIES EXCLUDE_FROM_ALL TRUE)
     target_include_directories(RhineFgGateProbe PRIVATE Qt/src)
@@ -832,7 +852,7 @@ if(RHINE_FFX_VK_AVAILABLE AND TARGET Qt6::GuiPrivate)
     if(MSVC)
         target_compile_options(RhineFgGateProbe PRIVATE /utf-8)
     else()
-        # 保留符号：探针崩在 Qt 内部时，只有带 -g 才能看出是哪一步。
+        # ä¿ç•™ç¬¦å·ï¼šæŽ¢é’ˆå´©åœ¨ Qt å†…éƒ¨æ—¶ï¼Œåªæœ‰å¸¦ -g æ‰èƒ½çœ‹å‡ºæ˜¯å“ªä¸€æ­¥ã€‚
         target_compile_options(RhineFgGateProbe PRIVATE -g)
         target_link_options(RhineFgGateProbe PRIVATE -g)
     endif()

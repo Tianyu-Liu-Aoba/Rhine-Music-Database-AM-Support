@@ -1,4 +1,6 @@
 #include "MusicPlayer.h"
+#include "PlaybackRules.h"
+#include <QCryptographicHash>
 #include <QFileInfo>
 #include <QUrl>
 #include <QJsonDocument>
@@ -118,6 +120,10 @@ QVector<QPair<QString, QString>> MusicPlayer::qualityOptions(const QString &prov
     if (provider == "siren") {
         return {{"lossless", "官网原始音源"}};
     }
+    if (provider == "apple") {
+        // 公开目录只交付 30 秒试听片段，不提供可挑选的码率档位。
+        return {{"preview", "试听片段（30 秒）"}};
+    }
     return {
         {"standard", "标准"},           {"higher", "较高"},      {"exhigh", "极高"}, {"lossless", "SQ 无损"},
         {"hires", "Hi-Res 高解析音质"}, {"jymaster", "超清母带"}};
@@ -159,6 +165,11 @@ void MusicPlayer::setQuality(const QString &value) {
 MusicPlayer::MusicPlayer(Host *host, MusicApi *api, QObject *parent)
     : QObject(parent), lyrics(host), queue(api), m_host(host), m_api(api) {
     state = {{"playing", false}, {"position", 0}, {"duration", 0}, {"volume", 0.7}, {"seekable", false}};
+    // 每 250ms 对齐一次系统会话：换歌感知更快，歌词逐行高亮也更贴近实际。
+    auto *mirrorTimer = new QTimer(this);
+    mirrorTimer->setInterval(250);
+    connect(mirrorTimer, &QTimer::timeout, this, &MusicPlayer::syncMirrorTrack);
+    mirrorTimer->start();
     connect(&queue, &PlaybackQueue::changed, this, &MusicPlayer::changed);
     if (auto connection = m_host->playbackConnection()) {
         connect(connection, &PlaybackConnection::snapshotChanged, this, &MusicPlayer::applyPlaybackSnapshot,
@@ -384,6 +395,9 @@ void MusicPlayer::prepare(QJsonObject track, quint64 generation, bool reload) {
     if (m_api->provider == "siren") {
         effectiveQuality = "original";
     }
+    if (m_api->provider == "apple") {
+        effectiveQuality = "preview";
+    }
 
     m_api->call(
         previewRequested ? "preview" : "playback", {track, effectiveQuality, alternative},
@@ -489,7 +503,10 @@ void MusicPlayer::tick(double time, bool force) {
             m_host->mediaControl("pause");
         }
     }
-    lyrics.sync(state["position"].toDouble());
+    // 试听片段只有 30 秒，按整曲时间轴同步歌词必然错位，因此不在试听时推进歌词。
+    if (!trial) {
+        lyrics.sync(state["position"].toDouble());
+    }
     // 播放结束或错误状态只在播放中或加载完成后触发
     if (!current.isEmpty() && !loading && state.contains("ended") &&
         state["ended"].toInteger() != m_endSerial) {
@@ -745,6 +762,105 @@ void MusicPlayer::applyPlaybackSnapshot() {
 }
 
 /** 会话存档属于播放核心；后台服务不链接 MusicSession.cpp，入口必须留在本文件。 */
+void MusicPlayer::syncMirrorTrack() {
+    const bool mirroring = current.value("mirror").toBool();
+    const auto session = m_api->provider == "apple" ? m_host->mediaSessionState() : QJsonObject{};
+    const auto title = session.value("title").toString();
+    if (!session.value("hasSession").toBool() || title.isEmpty()) {
+        if (mirroring) {
+            current = {};
+            lyrics.clear();
+            status.clear();
+            emit changed();
+        }
+        return;
+    }
+    // 歌词滚动与进度显示都读 state，镜像时必须喂系统会话的时间轴。
+    if (mirroring) {
+        // SMTC 只在对齐时刻上报进度，两次上报之间会停住；按流逝时间外推才不会越听越偏。
+        const auto reported = session.value("position").toDouble();
+        const auto now = QDateTime::currentMSecsSinceEpoch();
+        const auto advanced = std::abs(reported - m_mirrorReported) >= 1.0;
+        if (advanced) {
+            m_mirrorReported = reported;
+            m_mirrorBase = reported;
+            m_mirrorStamp = now;
+        }
+        // 会话有时把 playing 报成 false（Now Playing 靠音量判断并不可靠）；进度在推进就当作在播放。
+        const auto playing = session.value("playing").toBool() || advanced;
+        const auto position = playing ? m_mirrorBase + (now - m_mirrorStamp) : m_mirrorBase;
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            static qint64 lastLog = 0;
+            if (now - lastLog > 2000) {
+                lastLog = now;
+                qWarning("mirror-pos: reported=%.0f base=%.0f ours=%.0f playing=%d", reported,
+                         m_mirrorBase, position, playing ? 1 : 0);
+            }
+        }
+        state["position"] = position;
+        state["duration"] = session.value("duration").toDouble();
+        state["playing"] = playing;
+        state["seekable"] = true;
+        m_mirrorPosition = position;
+        lyrics.sync(position);
+    }
+    if (state["playing"].toBool() && !mirroring) {
+        return;
+    }
+    const auto artist = session.value("artist").toString();
+    // Apple 会把日文标题转成罗马音：让 Host 用网易云反查原文与翻译歌词。
+    m_host->resolveMirrorLyrics(title, artist, session.value("duration").toDouble());
+    // 用 Apple 播放器显示的播放时间做基准，自动校正歌词偏移。
+    const auto reference = m_host->applePositionMs(state["position"].toDouble());
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    // 参考时钟是逐秒显示的，只在偏差明显且未刚校准过时修正，避免来回抖动。
+    if (reference > 0 && now - m_mirrorCalibratedAt > 5000) {
+        const auto diff = reference - m_mirrorPosition;
+        if (diff > 800 && diff < 8000) {
+            m_mirrorCalibratedAt = now;
+            lyrics.adjustOffset(diff);
+        }
+    }
+    const auto document = m_host->mirrorLyricsDocument(title, artist);
+    const auto signal = title + QLatin1Char('#') + (document.isEmpty() ? QStringLiteral("0")
+                                                                     : QStringLiteral("1"));
+    if (mirroring && current.value("title").toString() == title) {
+        // 反查文档就绪后直接投喂；标题不匹配时返回空，杜绝把上一首的歌词串进来。
+        if (!document.isEmpty() && m_lyricSignal != signal) {
+            m_lyricSignal = signal;
+            lyrics.loadDocument(current, document);
+        }
+        return;
+    }
+    QJsonObject item;
+    item["kind"] = QStringLiteral("song");
+    // 歌词与队列缓存都以 provider:id 为键；id 必须逐曲唯一，否则会复用上一首的缓存。
+    item["id"] = PlaybackRules::mirrorTrackId(title, artist);
+    // 3D 场景按 key 做纹理准入；没有稳定 key 时封面预处理会被跳过。
+    item["key"] = QStringLiteral("apple:") + title + QLatin1Char('|') + artist;
+    item["title"] = title;
+    item["artist"] = artist;
+    item["album"] = session.value("album").toString().isEmpty() ? title
+                                                                : session.value("album").toString();
+    item["duration"] = session.value("duration").toDouble();
+    item["cover"] = m_host->mediaSessionCoverKey();
+    item["sourceURL"] = session.value("url").toString();
+    item["provider"] = QStringLiteral("apple");
+    item["mirror"] = true;
+    current = item;
+    status = QStringLiteral("Apple Music");
+    m_lyricSignal = signal;
+    m_mirrorReported = -1;
+    m_mirrorBase = session.value("position").toDouble();
+    m_mirrorStamp = QDateTime::currentMSecsSinceEpoch();
+    // 换歌先清空旧歌词，避免上一首的内容残留在页面上。
+    lyrics.clear();
+    lyrics.loadDirect(current);
+    // 队列缓存也要作废：主动切歌时苹果的列表已经变了，不能继续显示上一份。
+    m_host->invalidateAppleQueue();
+    emit changed();
+}
+
 QJsonObject MusicPlayer::sessionState() const {
     const auto live = m_host->mediaState();
     const auto position =

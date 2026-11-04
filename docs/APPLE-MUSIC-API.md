@@ -1,6 +1,22 @@
 # Apple Music 模式开发文档
 
-更新：2026-10-21
+更新：2026-11-03
+
+## 实现状态（跨平台公开目录）
+
+当前仓库实现的是**公开目录模式**（`provider=apple`）：检索、专辑／艺人详情、封面与 30 秒试听。
+下文第 3 节起的 macOS Music.app 集成（Scripting Bridge、资料库读写、整曲播放）尚未实现。
+
+- 代码：`Qt/src/AppleCatalog.*`（iTunes Search/Lookup 传输层，串行限速 3.1 秒、5 分钟缓存、20 秒超时）、
+  `Qt/src/AppleData.*`（条目到 MusicData 的纯数据映射）、`Qt/src/AppleMusic.*`（门面与只读接口的明确拒绝）、
+  `Qt/tests/AppleMusicChecks.cpp`（不联网的离线回归）。
+- 路由：`MusicApi` → `Host::requestJson` 拦截 `/native/apple/<operation>` → `AppleMusic`，不经过 Node 桥，
+  也不读写任何 Cookie。
+- 地区：跟随系统区域（`QLocale::system().territory()`），可用偏好 `apple-storefront` 覆盖。
+  2026-11-03 实测：公开接口下 `country=cn` 对 `song`／`album` 检索与按 ID 查询都返回 0 条（仅艺人检索可用），
+  因此默认不会对大陆区域使用 `cn`；`tw`／`hk`／`gb`／`us` 均正常。
+- 播放：只交付 `previewUrl` 的 30 秒片段，音质档位固定为 `preview`；整曲播放仍需在 Apple Music 应用内完成。
+- 账号：不读取 Apple ID、不使用开发者令牌，`account` 只返回固定的本机会话标记。
 
 ## 接入结构
 

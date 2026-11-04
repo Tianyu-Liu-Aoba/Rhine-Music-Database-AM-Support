@@ -16,6 +16,8 @@ struct Model {
     QString cover;
     QString mode;
     QString status;
+    // 空队列时的自定义提示（例如提示打开 Apple Music 迷你播放器）。
+    QString hint;
     int currentIndex = -1;
     int offset = 0;
     bool playing = false;
