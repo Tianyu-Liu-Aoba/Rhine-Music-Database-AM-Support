@@ -313,7 +313,10 @@ void NativeHud::playerAction(const QStringList &parts) {
             closing = false;
             lyricsMode = true;
             m_lyricsBrowse.reset();
-            music.followPlayback(player.current);
+            // 镜像曲目不在面板队列里：跟随播放会构造一个空目录，把歌词页顶掉。
+            if (!player.current.value("mirror").toBool()) {
+                music.followPlayback(player.current);
+            }
             m_scene.mode("detail");
             frame["mode"] = "detail";
         }
