@@ -254,15 +254,19 @@ void NativeHud::draw(QJsonObject next, double stageWidth, double time) {
     } else if (frame["mode"] == "boot") {
         boot(width);
     } else {
-        if (frame["mode"] == "archive" && !(lyricsMode && !m_music->player.current.isEmpty())) {
+        // Apple Music 遥控形态没有档案页：主视图始终是"当前播放"。
+        const auto remoteOnly = m_music->isApple();
+        if (frame["mode"] == "archive" && !remoteOnly &&
+            !(lyricsMode && !m_music->player.current.isEmpty())) {
             archiveMask(width);
         }
         brand();
         navigation(width);
         footer(width);
         if (modal != "search") {
-            if (frame["mode"] == "detail" || (lyricsMode && !m_music->player.current.isEmpty())) {
-                detail(width, lyricsMode ? 1 : frame["detail"].toDouble());
+            if (remoteOnly || frame["mode"] == "detail" ||
+                (lyricsMode && !m_music->player.current.isEmpty())) {
+                detail(width, remoteOnly ? 1 : (lyricsMode ? 1 : frame["detail"].toDouble()));
             } else {
                 archive(width);
             }
