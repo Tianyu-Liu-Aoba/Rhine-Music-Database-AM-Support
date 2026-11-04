@@ -254,11 +254,8 @@ void NativeHud::draw(QJsonObject next, double stageWidth, double time) {
     } else if (frame["mode"] == "boot") {
         boot(width);
     } else {
-        // Apple Music 遥控形态没有档案页：主视图固定为"当前播放/歌词"。
+        // Apple Music 遥控形态没有档案页：主视图固定为"当前播放"。
         const auto remoteOnly = m_music->isApple();
-        if (remoteOnly && !m_music->player.current.isEmpty()) {
-            lyricsMode = true;
-        }
         if (frame["mode"] == "archive" && !remoteOnly &&
             !(lyricsMode && !m_music->player.current.isEmpty())) {
             archiveMask(width);

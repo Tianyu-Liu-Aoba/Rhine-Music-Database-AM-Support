@@ -58,6 +58,25 @@ void NativeHud::detail(double width, double opacity) {
         container(width, opacity);
         return;
     }
+    // 遥控主页：只放大标题与艺人/专辑；歌词与大封面留到「词」页。
+    if (m_music->isApple() && !lyricsMode) {
+        const auto left = width * 0.56;
+        const auto usableWidth = width - left - 59;
+        const auto top = 300.0;
+        text(QStringLiteral("NOW PLAYING / 正在播放"), left, top - 70, 12);
+        limited(item.value("title").toString(), left, top, 46, usableWidth);
+        auto cursor = top + 76;
+        const auto artist = item.value("artist").toString();
+        if (!artist.isEmpty()) {
+            limited(artist, left, cursor, 20, usableWidth);
+            cursor += 34;
+        }
+        const auto album = item.value("album").toString();
+        if (!album.isEmpty()) {
+            limited(album, left, cursor, 15, usableWidth);
+        }
+        return;
+    }
     const auto x = width * 0.56;
     // 镜像曲目不在资料库选中项里：这个守卫会把歌词模式立刻判为失效，必须跳过。
     const auto mirroring = music.player.current.value("mirror").toBool();
