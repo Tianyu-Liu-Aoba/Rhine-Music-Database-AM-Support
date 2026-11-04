@@ -254,8 +254,11 @@ void NativeHud::draw(QJsonObject next, double stageWidth, double time) {
     } else if (frame["mode"] == "boot") {
         boot(width);
     } else {
-        // Apple Music 遥控形态没有档案页：主视图始终是"当前播放"。
+        // Apple Music 遥控形态没有档案页：主视图固定为"当前播放/歌词"。
         const auto remoteOnly = m_music->isApple();
+        if (remoteOnly && !m_music->player.current.isEmpty()) {
+            lyricsMode = true;
+        }
         if (frame["mode"] == "archive" && !remoteOnly &&
             !(lyricsMode && !m_music->player.current.isEmpty())) {
             archiveMask(width);
@@ -295,7 +298,8 @@ void NativeHud::archiveMask(double width) {
     restore();
 }
 void NativeHud::brand() {
-    roll("music-brand", m_music->libraryName(), 59, 115.425, 44, std::min(720.0, width * 0.45), "bold");
+    roll("music-brand", m_music->isApple() ? QStringLiteral("正在播放") : m_music->libraryName(), 59,
+         115.425, 44, std::min(720.0, width * 0.45), "bold");
     aligned("RHINE LAB / MUSIC DATABASE", 59, 173, 14, "demibold", 1);
 }
 void NativeHud::brandLine(int index) {
