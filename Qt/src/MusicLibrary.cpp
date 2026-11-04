@@ -777,7 +777,8 @@ void MusicLibrary::loadMoreSource(int lane) {
         restoreAccount();
         return;
     }
-    if (uid.isEmpty()) {
+    // Apple 的资料库来自网页会话（Edge + MusicKit），不依赖本应用的账号 uid。
+    if (uid.isEmpty() && !isApple()) {
         status = QStringLiteral("请登录") + providerName();
         changed();
         return;
