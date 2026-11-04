@@ -803,6 +803,15 @@ void MusicPlayer::syncMirrorTrack() {
         state["seekable"] = true;
         m_mirrorPosition = position;
         lyrics.sync(position);
+        // 闭环校准：以 Apple 界面上高亮的那句为准，修正两边歌词源的错位。
+        if (playing && !lyrics.document().isEmpty()) {
+            static qint64 lastAlign = 0;
+            const auto now = QDateTime::currentMSecsSinceEpoch();
+            if (now - lastAlign > 900) {
+                lastAlign = now;
+                lyrics.alignToLine(m_host->appleLyricLine(), position);
+            }
+        }
         // 播放中主动触发重绘：进度条与时间跟着走，不用等下一次状态变化。
         if (playing) {
             emit changed();

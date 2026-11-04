@@ -20,6 +20,8 @@ class AppleQueue : public QObject {
     double positionMs(double expected = -1) const;
     // 切歌后作废：下次读取立即重新枚举，而不是继续用上一份列表。
     void clear();
+    // Apple 歌词面板当前高亮的那一行（用于对齐我们自己的歌词）。
+    QString lyricLine() const;
 
   signals:
     void changed();

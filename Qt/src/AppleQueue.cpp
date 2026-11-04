@@ -20,6 +20,8 @@ const QString kSeparator = QString(QChar(0x2014));
 // Carries the reference clock out of readQueue (it runs on a worker thread).
 double g_referencePositionMs = -1;
 QList<double> g_referenceTimes;
+// Apple 歌词面板当前高亮行（由 UIA 扫描写入，供歌词对齐使用）。
+QString g_lyricLine;
 
 QString toText(BSTR value) {
     if (!value) {
@@ -221,6 +223,40 @@ QJsonArray readQueue() {
         if (texts) {
             texts->Release();
         }
+        // 歌词面板：当前行字号最大。取高度最大的长文本作为"现在唱到哪一句"。
+        IUIAutomationElementArray *lyricTexts = nullptr;
+        mini->FindAll(TreeScope_Descendants, trueCondition, &lyricTexts);
+        int lyricCount = 0;
+        if (lyricTexts) {
+            lyricTexts->get_Length(&lyricCount);
+        }
+        QString best;
+        double bestHeight = 0;
+        for (int i = 0; i < lyricCount; ++i) {
+            IUIAutomationElement *element = nullptr;
+            if (FAILED(lyricTexts->GetElement(i, &element)) || !element) {
+                continue;
+            }
+            if (controlType(element) == UIA_TextControlTypeId) {
+                const auto text = toText(currentName(element));
+                RECT box{};
+                if (text.size() >= 4 && SUCCEEDED(element->get_CurrentBoundingRectangle(&box))) {
+                    const auto height = double(box.bottom - box.top);
+                    const auto width = double(box.right - box.left);
+                    if (width > 200 && height > 40 && height > bestHeight) {
+                        bestHeight = height;
+                        best = text;
+                    }
+                }
+            }
+            element->Release();
+        }
+        if (lyricTexts) {
+            lyricTexts->Release();
+        }
+        if (!best.isEmpty()) {
+            g_lyricLine = best;
+        }
         result = collectItems(automation, mini);
         mini->Release();
     }
@@ -255,6 +291,8 @@ struct AppleQueue::Impl {
     QJsonArray items;
     double positionMs = -1;
     QList<double> times;
+    // Apple 歌词面板里"当前行"的字号最大，用它做闭环校准的参照。
+    QString lyricLine;
     std::atomic_bool busy{false};
 };
 
@@ -311,6 +349,10 @@ void AppleQueue::refresh() {
 QJsonArray AppleQueue::items() const {
     QMutexLocker lock(&m_impl->mutex);
     return m_impl->items;
+}
+
+QString AppleQueue::lyricLine() const {
+    return g_lyricLine;
 }
 
 void AppleQueue::clear() {

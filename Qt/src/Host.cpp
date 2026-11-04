@@ -1412,6 +1412,12 @@ QJsonArray Host::appleQueue() {
     }
     return appleQueueReader->items();
 }
+QString Host::appleLyricLine() {
+    if (!appleQueueReader || provider != "apple") {
+        return {};
+    }
+    return appleQueueReader->lyricLine();
+}
 /** 「Playing Next」第一条就是下一首，所以目标是 index 时要按 index + 1 次。 */
 bool Host::appleQueueJump(int index) {
     if (!session || index < 0) {

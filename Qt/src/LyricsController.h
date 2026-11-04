@@ -19,6 +19,8 @@ class LyricsController : public QObject {
     void selectLocalSource(const QJsonObject &track, const QString &source);
     QString localSource = "auto";
     void sync(double positionMs);
+    // 用 Apple Music 界面上的高亮歌词行做闭环校准：找到同一行后反推偏移。
+    void alignToLine(const QString &text, double positionMs);
     void adjustOffset(double deltaMs);
     void resetOffset();
     void applyGlobalOffset();
