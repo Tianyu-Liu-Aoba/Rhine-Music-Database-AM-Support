@@ -803,8 +803,10 @@ void MusicPlayer::syncMirrorTrack() {
         state["seekable"] = true;
         m_mirrorPosition = position;
         lyrics.sync(position);
-        // 闭环校准：以 Apple 界面上高亮的那句为准，修正两边歌词源的错位。
-        if (playing && !lyrics.document().isEmpty()) {
+        // 闭环校准默认关闭：实测在副歌重复的曲目上仍会跳行，先保证歌词稳定。
+        // 需要时用 RHINE_LYRIC_ALIGN=1 打开再评估。
+        static const bool alignEnabled = qEnvironmentVariableIsSet("RHINE_LYRIC_ALIGN");
+        if (playing && alignEnabled && !lyrics.document().isEmpty()) {
             static qint64 lastAlign = 0;
             const auto now = QDateTime::currentMSecsSinceEpoch();
             if (now - lastAlign > 900) {
