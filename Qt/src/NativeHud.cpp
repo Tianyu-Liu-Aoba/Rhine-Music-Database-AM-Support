@@ -435,6 +435,10 @@ void NativeHud::archive(double width) {
     } else {
         empty(width);
     }
+    // Apple Music 只做遥控：来源切换/列浏览/分页提示在遥控形态下没有意义。
+    if (m_music->isApple()) {
+        return;
+    }
     const auto nav = width * 0.2625;
     button("↑", nav, 903, 46, 46, "prev", 28);
     for (int index = 0; index < 8; ++index) {

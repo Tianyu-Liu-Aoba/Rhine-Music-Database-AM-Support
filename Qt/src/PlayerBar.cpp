@@ -210,9 +210,9 @@ void lyrics(Painter &paint, const State &state, double x, double y) {
 }
 
 void output(Painter &paint, const State &state, double x, double y, double right, bool minimal) {
-    paint.fill({x - 22, y + 23, 1, 50}, paint.line);
-    paint.label("OUTPUT / 输出", x, y + 29, 11, 180, "regular", true);
     if (!minimal) {
+        paint.fill({x - 22, y + 23, 1, 50}, paint.line);
+        paint.label("OUTPUT / 输出", x, y + 29, 11, 180, "regular", true);
         paint.label(state.applicationVolume ? "音量" : "系统音量", x, y + 53, 14, 78);
         if (state.applicationVolume) {
             const auto volumeX = x + 58;
