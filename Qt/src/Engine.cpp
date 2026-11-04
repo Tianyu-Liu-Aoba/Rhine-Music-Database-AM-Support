@@ -1096,8 +1096,17 @@ void Engine::step(double time) {
         !m_frame.value("pendingAnimations").toBool()) {
         m_sceneSleeping = true;
     }
-    const auto current = object["current"].toObject();
-    const auto cover = object["cover"].toString();
+    auto current = object["current"].toObject();
+    // 镜像曲目不在资料库里：场景侧的当前曲目为空时，用播放器里的镜像条目，
+    // 否则 3D 唱片没有 key 也没有封面，只能画占位。
+    if (current.value("key").toString().isEmpty() &&
+        app->music.player.current.value("mirror").toBool()) {
+        current = app->music.player.current;
+    }
+    auto cover = object["cover"].toString();
+    if (cover.isEmpty()) {
+        cover = current.value("cover").toString();
+    }
     const auto coverRevision = host.image(cover).cacheKey();
     const auto &player = app->music.player;
     const auto identity = PlaybackQueue::identity(player.current);
