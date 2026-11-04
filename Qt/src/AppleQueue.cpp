@@ -112,16 +112,24 @@ QJsonArray collectItems(IUIAutomation *automation, IUIAutomationElement *window)
         if (label.isEmpty()) {
             continue;
         }
-        // A real track shows title, artist/album and duration. Sidebar entries only
-        // expose a single text node, so requiring the duration filters them out.
-        const auto duration = fields.size() >= 3 ? parseDuration(fields.at(2)) : 0.0;
+        // 时长可能是一个独立 Text，也可能只出现在整条 label 的末尾（主窗口列表）。
+        auto duration = fields.size() >= 3 ? parseDuration(fields.at(2)) : 0.0;
         if (duration <= 0) {
-            if (verbose()) {
-                qWarning("queue: skip '%s' (fields=%lld)", qPrintable(label), qlonglong(fields.size()));
+            static const QRegularExpression tail(
+                QStringLiteral("(\\d{1,3})\\s*[:：]\\s*(\\d{2})\\s*$"));
+            auto match = tail.match(label);
+            if (match.hasMatch()) {
+                duration = (match.captured(1).toLongLong() * 60 + match.captured(2).toLongLong()) * 1000.0;
             }
-            continue;
         }
-        QJsonObject item{{"index", result.size()}, {"label", label}, {"duration", duration}};
+        if (duration <= 0) {
+            // 迷你播放器的队列行没有时长文本，仍要保留：没有时长不等于不是曲目。
+            duration = -1;
+        }
+        QJsonObject item{{"index", result.size()}, {"label", label}};
+        if (duration > 0) {
+            item["duration"] = duration;
+        }
         if (fields.size() >= 1) {
             item["title"] = fields.at(0);
         }
