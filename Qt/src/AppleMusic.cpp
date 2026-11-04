@@ -120,6 +120,10 @@ void AppleMusic::reset() {
 }
 
 void AppleMusic::request(const QString &operation, const QJsonArray &arguments, Reply reply) {
+    if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+        qWarning("apple-op: %s args=%lld web=%d", qPrintable(operation), qlonglong(arguments.size()),
+                 m_webLibrary ? 1 : 0);
+    }
     const auto generation = m_generation;
     Done done = [this, generation, reply = std::move(reply)](QJsonValue value, QString error) {
         if (generation != m_generation) {
