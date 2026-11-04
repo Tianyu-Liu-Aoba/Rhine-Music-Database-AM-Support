@@ -54,7 +54,10 @@ void NativeHud::detail(double width, double opacity) {
         return;
     }
     const auto x = width * 0.56;
-    if (lyricsMode && PlaybackQueue::identity(item) != PlaybackQueue::identity(music.player.current)) {
+    // 镜像曲目不在资料库选中项里：这个守卫会把歌词模式立刻判为失效，必须跳过。
+    const auto mirroring = music.player.current.value("mirror").toBool();
+    if (lyricsMode && !mirroring &&
+        PlaybackQueue::identity(item) != PlaybackQueue::identity(music.player.current)) {
         lyricsMode = false;
     }
     const auto usable = width - x - 59;

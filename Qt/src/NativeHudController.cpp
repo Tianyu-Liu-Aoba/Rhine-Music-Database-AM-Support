@@ -2,6 +2,7 @@
 #include "fg/FgConfig.h"
 #include "GraphicsBackend.h"
 #include "NativeHud.h"
+#include <QDebug>
 #include "MusicData.h"
 #include "MusicDiscover.h"
 #include <QJsonDocument>
@@ -308,6 +309,11 @@ void NativeHud::playerAction(const QStringList &parts) {
     const auto value = parts.value(2).toDouble();
     const auto index = int(value);
     if (name == "lyrics") {
+        if (!qEnvironmentVariableIsEmpty("RHINE_MEDIA_SESSION_LOG")) {
+            qWarning("hud: lyrics pressed current=%d mirror=%d mode=%s", player.current.isEmpty() ? 0 : 1,
+                     player.current.value("mirror").toBool() ? 1 : 0,
+                     qPrintable(frame["mode"].toString()));
+        }
         if (!player.current.isEmpty()) {
             modal.clear();
             closing = false;
