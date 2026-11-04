@@ -45,9 +45,12 @@ QString NativeHud::body() const {
 void NativeHud::detail(double width, double opacity) {
     auto &music = *m_music;
     auto item = music.current;
-    // 镜像曲目只存在于播放器里（不在资料库选中项中）：歌词页必须拿它当条目，
-    // 否则这里会掉进 archive() 兜底，看起来就像"按钮打开了首页"。
-    if (item.isEmpty() && music.player.current.value("mirror").toBool()) {
+    const auto mirrorPlaying = music.player.current.value("mirror").toBool();
+    // 歌词模式说的就是"正在播放的那首"：即使资料库还停在别的目录上，也要用它。
+    if (lyricsMode && mirrorPlaying) {
+        item = music.player.current;
+    } else if (item.isEmpty() && mirrorPlaying) {
+        // 镜像曲目只存在于播放器里（不在资料库选中项中），否则会掉进 archive() 兜底。
         item = music.player.current;
     }
     if (item.isEmpty()) {
