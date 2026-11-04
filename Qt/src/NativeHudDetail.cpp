@@ -64,10 +64,10 @@ void NativeHud::detail(double width, double opacity) {
         const auto usableWidth = width - left - 59;
         save();
         alpha(opacity);
-        text(QStringLiteral("NOW PLAYING / 正在播放"), left, 368, 12);
+        text(QStringLiteral("NOW PLAYING / 正在播放"), left, 430, 12);
         const auto titleSize = 46.0 * (0.94 + 0.06 * opacity);
-        limited(item.value("title").toString(), left, 420, titleSize, usableWidth);
-        auto cursor = 480.0;
+        limited(item.value("title").toString(), left, 482, titleSize, usableWidth);
+        auto cursor = 542.0;
         const auto artist = item.value("artist").toString();
         if (!artist.isEmpty()) {
             limited(artist, left, cursor, 20, usableWidth);

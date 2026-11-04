@@ -104,8 +104,11 @@ class Painter {
 };
 
 void song(Painter &paint, const State &state, double x, double y, double width) {
-    // 极简模式不画封面：歌词页有整张封面，底栏留白给标题与艺人。
-    const auto showCover = !state.minimal;
+    // 极简模式不画曲目信息：主页已经展示了标题/艺人/专辑，底栏只留控制。
+    if (state.minimal) {
+        return;
+    }
+    const auto showCover = true;
     if (showCover) {
         if (!state.cover.isEmpty()) {
             paint.drawing.commands.append(QJsonArray{"image", state.cover, x, y + 21, 54, 54});
