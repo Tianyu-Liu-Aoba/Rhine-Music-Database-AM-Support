@@ -71,8 +71,8 @@
 
 | 项目 | 要求 |
 | --- | --- |
-| 系统 | Windows 10/11 x64（主要目标）；macOS、Linux 可构建 |
-| 图形 | Vulkan 或 D3D12（Windows），Metal（macOS），OpenGL 回退 |
+| 系统 | **Windows 10/11 x64**。本分支只在 Windows 上完成构建与验证；macOS / Linux 仍保留代码路径，但未构建、未验证 |
+| 图形 | Vulkan 或 D3D12（Windows）；其它平台未验证 |
 | Apple Music | 需要安装 **Apple Music 桌面应用**并登录，遥控功能依赖它 |
 | 网络 | 公开目录与歌词需要联网；试听需要访问 `*.apple.com` |
 
@@ -86,11 +86,22 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-产物位于 `output/`。Windows 上若使用 MSYS2 工具链，可用 UCRT64 环境：
+产物位于 `output/`。以下环境组合经过实际构建与运行验证：
+
+| 项目 | 验证值 |
+| --- | --- |
+| 系统 | Windows 11 x64 |
+| 编译器 | MinGW-w64 GCC 16.2（MSYS2 UCRT64） |
+| Qt | 6.12.0 |
+| 构建 | CMake 4.4 + Ninja |
 
 ```sh
+# MSYS2 UCRT64 环境
 pacman -S mingw-w64-ucrt-x86_64-qt6 mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
 ```
+
+> 本项目在 CI 中也提供 MSVC 构建，但本分支的改动**只在上述 MinGW 环境验证过**；
+> MSVC、macOS 与 Linux 的构建结果未经确认，请勿视为已支持。
 
 ## 测试
 
