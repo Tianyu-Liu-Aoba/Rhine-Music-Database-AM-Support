@@ -104,18 +104,22 @@ class Painter {
 };
 
 void song(Painter &paint, const State &state, double x, double y, double width) {
-    if (!state.cover.isEmpty()) {
-        paint.drawing.commands.append(QJsonArray{"image", state.cover, x, y + 21, 54, 54});
-    } else {
-        paint.drawing.commands.append(QJsonArray{"ellipse", paint.line, x, y + 21, 54, 54});
-        paint.drawing.commands.append(QJsonArray{"ellipse", paint.paper, x + 2, y + 23, 50, 50});
-        paint.drawing.commands.append(QJsonArray{"ellipse", paint.line, x + 10, y + 31, 34, 34});
-        paint.drawing.commands.append(QJsonArray{"ellipse", paint.paper, x + 11, y + 32, 32, 32});
-        paint.drawing.commands.append(QJsonArray{"ellipse", paint.ink, x + 23, y + 44, 8, 8});
-        paint.drawing.commands.append(QJsonArray{"ellipse", paint.amber, x + 37, y + 27, 5, 5});
+    // 极简模式不画封面：歌词页有整张封面，底栏留白给标题与艺人。
+    const auto showCover = !state.minimal;
+    if (showCover) {
+        if (!state.cover.isEmpty()) {
+            paint.drawing.commands.append(QJsonArray{"image", state.cover, x, y + 21, 54, 54});
+        } else {
+            paint.drawing.commands.append(QJsonArray{"ellipse", paint.line, x, y + 21, 54, 54});
+            paint.drawing.commands.append(QJsonArray{"ellipse", paint.paper, x + 2, y + 23, 50, 50});
+            paint.drawing.commands.append(QJsonArray{"ellipse", paint.line, x + 10, y + 31, 34, 34});
+            paint.drawing.commands.append(QJsonArray{"ellipse", paint.paper, x + 11, y + 32, 32, 32});
+            paint.drawing.commands.append(QJsonArray{"ellipse", paint.ink, x + 23, y + 44, 8, 8});
+            paint.drawing.commands.append(QJsonArray{"ellipse", paint.amber, x + 37, y + 27, 5, 5});
+        }
     }
-    const auto infoX = x + 74;
-    const auto infoWidth = width - 74;
+    const auto infoX = showCover ? x + 74 : x;
+    const auto infoWidth = showCover ? width - 74 : width;
     auto caption = QStringLiteral("NOW PLAYING / 当前音轨");
     if (state.failed) {
         caption = state.status.isEmpty() ? QStringLiteral("音频连接中断") : state.status;
@@ -205,16 +209,18 @@ void lyrics(Painter &paint, const State &state, double x, double y) {
     }
 }
 
-void output(Painter &paint, const State &state, double x, double y, double right) {
+void output(Painter &paint, const State &state, double x, double y, double right, bool minimal) {
     paint.fill({x - 22, y + 23, 1, 50}, paint.line);
     paint.label("OUTPUT / 输出", x, y + 29, 11, 180, "regular", true);
-    paint.label(state.applicationVolume ? "音量" : "系统音量", x, y + 53, 14, 78);
-    if (state.applicationVolume) {
-        const auto volumeX = x + 58;
-        paint.drawing.volume = QRectF(volumeX, y + 47, 100, 28);
-        paint.fill({volumeX, y + 60, 100, 3}, paint.line);
-        paint.fill({volumeX, y + 60, 100 * std::clamp(state.volume, 0.0, 1.0), 3}, paint.ink);
-        paint.hit(*paint.drawing.volume, "player:volume-fraction:0", "音量");
+    if (!minimal) {
+        paint.label(state.applicationVolume ? "音量" : "系统音量", x, y + 53, 14, 78);
+        if (state.applicationVolume) {
+            const auto volumeX = x + 58;
+            paint.drawing.volume = QRectF(volumeX, y + 47, 100, 28);
+            paint.fill({volumeX, y + 60, 100, 3}, paint.line);
+            paint.fill({volumeX, y + 60, 100 * std::clamp(state.volume, 0.0, 1.0), 3}, paint.ink);
+            paint.hit(*paint.drawing.volume, "player:volume-fraction:0", "音量");
+        }
     }
     const auto queueX = right - 65;
     paint.fill({queueX, y + 28, 19, 1.5}, paint.ink);
@@ -242,12 +248,17 @@ Drawing render(const State &state, const QRectF &bounds, bool dark, Glyphs &glyp
     paint.drawing.inputBounds = row.adjusted(0, -6, 0, 0);
     song(paint, state, bounds.x() + 28, y, songWidth);
     const auto centerY = y + RowHeight / 2;
-    favorite(paint, state, favoriteX, centerY);
+    if (!state.minimal) {
+        favorite(paint, state, favoriteX, centerY);
+    }
     paint.controls(state, center, centerY);
     lyrics(paint, state, bounds.right() - 470, centerY);
-    playbackMode(paint, state, bounds.right() - 380, centerY);
+    if (!state.minimal) {
+        playbackMode(paint, state, bounds.right() - 380, centerY);
+    }
     timeline(paint, state, row);
-    output(paint, state, outputX, y, bounds.right());
+    // 队列按钮与音量同在这个函数里：极简模式只省略音量，队列入口必须保留。
+    output(paint, state, outputX, y, bounds.right(), state.minimal);
     return paint.drawing;
 }
 }

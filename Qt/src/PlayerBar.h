@@ -26,6 +26,8 @@ struct State {
     bool liked = false;
     bool likeKnown = false;
     bool canLike = false;
+    // 极简控制条：只留播放控制、进度与歌词入口（Apple Music 模式）。
+    bool minimal = false;
 };
 
 enum class Surface { Embedded, Floating };

@@ -309,21 +309,20 @@ double NativeHud::navigationLeft(double width) {
 }
 void NativeHud::navigation(double width) {
     const auto x = navigationLeft(width) + 210;
+    if (m_music->isApple()) {
+        // 只做"当前播放"控制器：检索与推荐入口都去掉，选曲交给 Apple Music 应用。
+        control("打开 Apple Music ↗", x - 210, 118, 184, "music:open-apple");
+        control(m_host->updater.available() ? "设置 · 更新" : "设置", x + 400, 118, 120, "settings");
+        return;
+    }
     if (m_music->isLocal()) {
         control("文件夹管理 ＋", x - 210, 118, 184, "discover");
     } else if (!m_music->isSiren()) {
-        // 发现音乐由公开榜单填充，Apple Music 同样可用。
         control("发现音乐 ↗", x - 210, 118, 184, "discover");
     }
     control("音乐检索  /", x, 118, 184, "search");
-    if (m_music->isApple()) {
-        // 资料库不接入后，个人音乐栏改回官方应用入口。
-        control("打开 Apple Music ↗", x + 200, 118, 184, "music:open-apple");
-    } else {
-        control(m_music->isLocal() ? "本地曲库"
-                                   : (m_music->isSiren() ? "＋ 塞壬曲库" : "＋ 我的音乐"),
-                x + 200, 118, 184, "saved");
-    }
+    control(m_music->isLocal() ? "本地曲库" : (m_music->isSiren() ? "＋ 塞壬曲库" : "＋ 我的音乐"), x + 200,
+            118, 184, "saved");
     control(m_host->updater.available() ? "设置 · 更新" : "设置", x + 400, 118, 120, "settings");
 }
 void NativeHud::footer(double width) {

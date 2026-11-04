@@ -84,6 +84,8 @@ void NativeHud::playerBar(double x, double y, double width) {
         state.canLike = false;
     }
     state.applicationVolume = PlatformFeatures::ApplicationVolume;
+    // Apple Music 模式只做播放控制与歌词：底栏去掉封面、喜欢、播放模式与音量。
+    state.minimal = m_music->isApple();
     const auto drawing = PlayerBar::render(state, {x, y, width, PlayerBar::RowHeight}, dark, *m_glyphs);
     for (const auto &command : drawing.commands) {
         commands.append(command);
