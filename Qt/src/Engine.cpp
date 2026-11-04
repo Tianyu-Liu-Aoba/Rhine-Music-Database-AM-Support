@@ -1097,14 +1097,13 @@ void Engine::step(double time) {
         m_sceneSleeping = true;
     }
     auto current = object["current"].toObject();
-    // 镜像曲目不在资料库里：详情视图展示"正在播放"的那张碟，其它视图仍跟随选中项。
+    // 镜像模式：唱片始终代表"正在播放"的那张，浏览歌单时也跟随播放而不是跟随选中项。
     const auto mirrorPlaying = app->music.player.current.value("mirror").toBool();
-    const auto detailView = m_frame.value("mode") == "detail";
-    if (mirrorPlaying && (detailView || current.value("key").toString().isEmpty())) {
+    if (mirrorPlaying) {
         current = app->music.player.current;
     }
     auto cover = object["cover"].toString();
-    if (cover.isEmpty() || (mirrorPlaying && detailView)) {
+    if (cover.isEmpty() || mirrorPlaying) {
         cover = current.value("cover").toString();
     }
     const auto coverRevision = host.image(cover).cacheKey();
