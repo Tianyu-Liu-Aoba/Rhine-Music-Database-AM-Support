@@ -505,6 +505,36 @@ void AppleMusic::detail(QJsonObject item, Done done) {
         done(QJsonArray{value, QJsonArray{}, QJsonArray{}}, {});
         return;
     }
+    if (kind == "playlist" && m_webLibrary) {
+        // 资料库歌单的曲目在 /v1/me/library/playlists/{id}/tracks，不在公开目录里。
+        m_webLibrary(QStringLiteral("playlistTracks"), QJsonObject{{"id", id}, {"limit", 100}},
+                     [done, item](QJsonObject body, QString error) {
+                         if (!error.isEmpty()) {
+                             done({}, error);
+                             return;
+                         }
+                         QJsonArray songs;
+                         for (const auto &entry :
+                              body.value("result").toObject().value("items").toArray()) {
+                             const auto value = entry.toObject();
+                             auto song = MusicData::item("song", value.value("id").toString(),
+                                                         value.value("name").toString(),
+                                                         value.value("artist").toString(),
+                                                         QStringLiteral("apple"));
+                             song["album"] = value.value("album").toString();
+                             song["duration"] = value.value("duration").toDouble();
+                             song["cover"] = value.value("artwork").toString();
+                             song["sourceURL"] = QStringLiteral("https://music.apple.com/");
+                             if (!song.isEmpty()) {
+                                 songs.append(song);
+                             }
+                         }
+                         auto container = item;
+                         container["trackCount"] = songs.size();
+                         done(QJsonArray{container, songs, QJsonArray{}}, {});
+                     });
+        return;
+    }
     if (kind == "song") {
         m_catalog.lookup({id}, QStringLiteral("song"), 1, [done, id](QJsonObject body, QString error) {
             if (!error.isEmpty()) {

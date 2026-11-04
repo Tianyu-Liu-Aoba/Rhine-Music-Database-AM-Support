@@ -192,13 +192,27 @@ async function libraryAlbums(limit, offset) {
     });
 }
 
+async function playlistTracks(id, limit, offset) {
+    return withSession(async (session) => {
+        const params = { limit: limit || 100 };
+        if (offset) {
+            params.offset = offset;
+        }
+        const apiPath = `/v1/me/library/playlists/${encodeURIComponent(id)}/tracks`;
+        const raw = await libraryCall(session, apiPath, params);
+        return JSON.parse(raw || '{"ok":false}');
+    });
+}
+
 async function dispatch(message) {
     const params = message.params || {};
     const operation = String(message.route || '').replace('/appleweb/', '');
     const limit = Number(params.limit) || 100;
     const offset = Number(params.offset) || 0;
     let result;
-    if (operation === 'playlists') {
+    if (operation === 'playlistTracks') {
+        result = await playlistTracks(String(params.id || ''), limit, offset);
+    } else if (operation === 'playlists') {
         result = await libraryPlaylists();
     } else if (operation === 'albums') {
         result = await libraryAlbums(limit, offset);
