@@ -144,6 +144,9 @@ class NativeHud : public QObject {
     int archiveMaskStrength = 50;
     bool closing = false;
     bool lyricsMode = false;
+    // 页面切换动画：记录切换时刻，用于标题缩放与歌词淡入。
+    bool m_pageSwitchLyrics = false;
+    qint64 m_pageSwitchAt = 0;
     bool trackListMode = false;
     double width = 1920;
     double lastTime = 0;

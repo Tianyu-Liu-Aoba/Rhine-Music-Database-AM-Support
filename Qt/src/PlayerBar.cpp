@@ -252,7 +252,8 @@ Drawing render(const State &state, const QRectF &bounds, bool dark, Glyphs &glyp
         favorite(paint, state, favoriteX, centerY);
     }
     paint.controls(state, center, centerY);
-    lyrics(paint, state, bounds.right() - 470, centerY);
+    // 歌词按钮紧挨队列（右下角），遥控形态下两者是仅有的两个入口。
+    lyrics(paint, state, bounds.right() - 150, centerY);
     if (!state.minimal) {
         playbackMode(paint, state, bounds.right() - 380, centerY);
     }

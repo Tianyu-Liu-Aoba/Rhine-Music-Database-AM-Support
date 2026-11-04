@@ -266,7 +266,15 @@ void NativeHud::draw(QJsonObject next, double stageWidth, double time) {
         if (modal != "search") {
             if (remoteOnly || frame["mode"] == "detail" ||
                 (lyricsMode && !m_music->player.current.isEmpty())) {
-                detail(width, remoteOnly ? 1 : (lyricsMode ? 1 : frame["detail"].toDouble()));
+                // 切换页面时做 260ms 的过场：标题轻微缩放、歌词淡入。
+                const auto now = QDateTime::currentMSecsSinceEpoch();
+                if (lyricsMode != m_pageSwitchLyrics) {
+                    m_pageSwitchLyrics = lyricsMode;
+                    m_pageSwitchAt = now;
+                }
+                const auto progress =
+                    std::clamp(double(now - m_pageSwitchAt) / 260.0, 0.0, 1.0);
+                detail(width, remoteOnly ? progress : (lyricsMode ? progress : frame["detail"].toDouble()));
             } else {
                 archive(width);
             }
