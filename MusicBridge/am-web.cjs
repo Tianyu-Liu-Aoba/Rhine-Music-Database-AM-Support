@@ -192,15 +192,28 @@ async function libraryAlbums(limit, offset) {
     });
 }
 
+// Apple 每页最多 100 条：桥内连续翻页直到取完（最多 1000 首），避免上层再做分页。
 async function playlistTracks(id, limit, offset) {
     return withSession(async (session) => {
-        const params = { limit: limit || 100 };
-        if (offset) {
-            params.offset = offset;
+        const max = Number(limit) || 1000;
+        const collected = [];
+        let cursor = Number(offset) || 0;
+        let hasNext = true;
+        while (hasNext && collected.length < max) {
+            const apiPath = `/v1/me/library/playlists/${encodeURIComponent(id)}/tracks`;
+            const raw = await libraryCall(session, apiPath, { limit: 100, offset: cursor });
+            const page = JSON.parse(raw || '{"ok":false}');
+            if (!page.ok) {
+                return page;
+            }
+            collected.push(...(page.items || []));
+            hasNext = Boolean(page.next);
+            cursor += (page.items || []).length;
+            if (!page.items || page.items.length === 0) {
+                break;
+            }
         }
-        const apiPath = `/v1/me/library/playlists/${encodeURIComponent(id)}/tracks`;
-        const raw = await libraryCall(session, apiPath, params);
-        return JSON.parse(raw || '{"ok":false}');
+        return { ok: true, items: collected, next: hasNext ? String(cursor) : null };
     });
 }
 
