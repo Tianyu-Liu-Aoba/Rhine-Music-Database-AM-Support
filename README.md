@@ -2,6 +2,10 @@
 
 **Apple Music 遥控终端 · 正在播放可视化 · 本地曲库播放**
 
+> 本项目由 **[MikeQu223/Rhine-Music-Database](https://github.com/MikeQu223/Rhine-Music-Database)** 修改而来。
+> 原始设计、界面与绝大部分代码均来自原作者，本分支只增加了 Apple Music 相关能力与遥控形态的界面调整。
+> 请优先支持原作者的项目。
+
 这是对《明日方舟》特别映像「莱茵生命：访问」终端界面的非官方复刻，现在被改造成一台**面向"正在播放"的播放终端**：
 在 Apple Music 桌面应用里选曲，这个面板负责显示、遥控、歌词与视觉。
 
@@ -116,6 +120,8 @@ ctest --test-dir build --output-on-failure
 
 ## 致谢
 
+- **原始项目：[MikeQu223/Rhine-Music-Database](https://github.com/MikeQu223/Rhine-Music-Database)**
+  —— 本仓库是它的修改版本，界面设计、渲染架构与全部基础功能都归原作者所有
 - 界面原型：《明日方舟》「莱茵生命：访问」特别映像（非官方复刻）
 - 歌词：[LRCLIB](https://lrclib.net)、网易云音乐、QQ 音乐
 - 音频：FFmpeg；图形：Qt QRhi
