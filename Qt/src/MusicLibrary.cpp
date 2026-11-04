@@ -565,14 +565,8 @@ void MusicLibrary::showSource(int lane) {
         changed();
         return;
     }
-    if (isApple() && lane > 0) {
-        // Apple 公开目录只交付检索与试听；个人音乐与歌单写入必须在 Apple Music 内完成。
-        status = QStringLiteral("Apple Music 公开目录没有个人音乐，请使用 Apple Music 应用");
-        selectedLane = 0;
-        changed();
-        return;
-    }
-    privateSelection = lane > 0 && !isLocal() && !isSiren() && !isApple();
+    // Apple 的资料库来自网页会话桥（Edge + MusicKit）；没有可用会话时由 AppleMusic 给出提示。
+    privateSelection = lane > 0 && !isLocal() && !isSiren();
     if (directory) {
         leaveDirectory(false);
     }
