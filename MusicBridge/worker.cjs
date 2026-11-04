@@ -309,6 +309,10 @@ async function dispatchRequest(message) {
         }
         return { body: result, cookies: [] };
     }
+    if (message.route?.startsWith('/appleweb/')) {
+        // Apple Music 网页会话（MusicKit）资料库：走 Edge 的 DevTools 协议。
+        return require('./am-web.cjs').dispatch(message);
+    }
     if (message.route?.startsWith('/native/')) {
         const client = await import('./client/dispatch.mjs');
         return client.dispatch(message, dispatch);

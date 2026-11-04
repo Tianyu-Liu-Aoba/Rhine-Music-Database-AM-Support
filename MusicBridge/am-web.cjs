@@ -192,7 +192,32 @@ async function libraryAlbums(limit, offset) {
     });
 }
 
-module.exports = { librarySongs, libraryPlaylists, libraryAlbums, edgePath, PROFILE };
+async function dispatch(message) {
+    const params = message.params || {};
+    const operation = String(message.route || '').replace('/appleweb/', '');
+    const limit = Number(params.limit) || 100;
+    const offset = Number(params.offset) || 0;
+    let result;
+    if (operation === 'playlists') {
+        result = await libraryPlaylists();
+    } else if (operation === 'albums') {
+        result = await libraryAlbums(limit, offset);
+    } else {
+        result = await librarySongs(limit, offset);
+    }
+    if (!result || !result.ok) {
+        return {
+            body: { code: 500, message: (result && result.error) || 'Apple Music 资料库读取失败' },
+            cookie: [],
+        };
+    }
+    return {
+        body: { code: 200, result: { items: result.items, next: result.next, offset } },
+        cookie: [],
+    };
+}
+
+module.exports = { librarySongs, libraryPlaylists, libraryAlbums, dispatch, edgePath, PROFILE };
 
 if (require.main === module) {
     const job = (process.argv[2] || 'songs') === 'playlists' ? libraryPlaylists() : librarySongs(10, 0);

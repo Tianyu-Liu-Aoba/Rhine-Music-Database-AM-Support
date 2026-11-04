@@ -1,5 +1,6 @@
 #include "AppleMusic.h"
 #include "AppleData.h"
+#include "MusicData.h"
 #include <QJsonDocument>
 #include <QLocale>
 #include <QNetworkReply>
@@ -196,10 +197,48 @@ void AppleMusic::request(const QString &operation, const QJsonArray &arguments, 
         discover(argument(arguments, 0).toString(), argument(arguments, 1).toInt(), std::move(done));
         return;
     }
-    if (QStringList{"userPlaylists", "likedSongs", "likedAlbums", "librarySongs", "favoritePlaylists"}
+    if (QStringList{"userPlaylists", "likedSongs", "likedAlbums", "librarySongs",
+                    "favoritePlaylists"}
             .contains(operation)) {
+        // 有网页会话桥时读真实资料库；没有就明确说明需要登录。
+        if (m_webLibrary) {
+            QString kind = QStringLiteral("songs");
+            if (operation == "userPlaylists" || operation == "favoritePlaylists") {
+                kind = QStringLiteral("playlists");
+            } else if (operation == "likedAlbums") {
+                kind = QStringLiteral("albums");
+            }
+            const auto offset = argument(arguments, 0).toInt();
+            m_webLibrary(kind, QJsonObject{{"limit", 100}, {"offset", offset}},
+                         [done, kind, offset](QJsonObject body, QString error) {
+                             if (!error.isEmpty()) {
+                                 done({}, error);
+                                 return;
+                             }
+                             const auto result = body.value("result").toObject();
+                             QJsonArray values;
+                             for (const auto &value : result.value("items").toArray()) {
+                                 const auto item = value.toObject();
+                                 auto entry = MusicData::item(
+                                     kind == "albums"       ? "album"
+                                     : kind == "playlists"  ? "playlist"
+                                                            : "song",
+                                     item.value("id").toString(), item.value("name").toString(),
+                                     item.value("artist").toString(), QStringLiteral("apple"));
+                                 entry["album"] = item.value("album").toString();
+                                 entry["duration"] = item.value("duration").toDouble();
+                                 entry["cover"] = item.value("artwork").toString();
+                                 entry["sourceURL"] = QStringLiteral("https://music.apple.com/");
+                                 if (!entry.isEmpty()) {
+                                     values.append(entry);
+                                 }
+                             }
+                             done(page(values, offset), {});
+                         });
+            return;
+        }
         done(page({}, 0,
-                  QStringLiteral("Apple Music 公开目录不提供个人音乐与推荐，请在 Apple Music 应用中浏览")),
+                  QStringLiteral("登录 Apple Music 网页版后即可在此浏览资料库")),
              {});
         return;
     }
@@ -247,6 +286,10 @@ void AppleMusic::discover(const QString &tab, int offset, Done done) {
 }
 
 /** Apple 没有开放歌词接口；逐行歌词取自公开的 LRCLIB，无需任何令牌。 */
+void AppleMusic::setWebLibrary(WebLibrary provider) {
+    m_webLibrary = std::move(provider);
+}
+
 void AppleMusic::setLyricProvider(LyricProvider provider) {
     m_lyricProvider = std::move(provider);
 }

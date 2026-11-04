@@ -78,6 +78,14 @@ Host::Host(QString path, bool test, QObject *parent, bool service, PlaybackConne
     connect(session.get(), &MediaSession::changed, this, [this] { emit invalidated(); });
     appleQueueReader = std::make_unique<AppleQueue>(this);
     connect(appleQueueReader.get(), &AppleQueue::changed, this, [this] { emit invalidated(); });
+    // 资料库走网页会话桥（Edge + MusicKit），不经过公开目录。
+    apple->setWebLibrary([this](QString kind, QJsonObject params,
+                                std::function<void(QJsonObject, QString)> done) {
+        requestJson(QStringLiteral("/appleweb/") + kind, params,
+                    [done](QJsonObject result, QString error) {
+                        done(result.value("body").toObject(), error);
+                    });
+    });
     // 歌词优先用本地服务（多源择优 + 翻译），取不到再走 LRCLIB。
     apple->setLyricProvider([this] {
         const auto local = nowPlaying ? nowPlaying->lyricText() : QString();
@@ -782,8 +790,9 @@ void Host::loadCover(QString input, TextReply callback, int maximumDimension) {
     }
     QUrl url(input.replace("http://", "https://"));
     const auto domain = url.host();
-    // Apple 封面由 mzstatic 交付，尺寸已由 AppleData 写入路径，不再追加平台专用参数。
-    const bool appleArtwork = domain == "mzstatic.com" || domain.endsWith(".mzstatic.com");
+    // Apple 封面由 mzstatic 交付；网页资料库给的是带签名的 blobstore 地址，两者都放行。
+    const bool appleArtwork = domain == "mzstatic.com" || domain.endsWith(".mzstatic.com") ||
+                              domain == "blobstore.apple.com" || domain.endsWith(".blobstore.apple.com");
     if (!(domain == "music.126.net" || domain.endsWith(".music.126.net") || domain == "music.163.com" ||
           domain.endsWith(".music.163.com") || domain == "y.gtimg.cn" || domain == "qpic.y.qq.com" ||
           domain == "y.qq.com" || domain.endsWith(".kugou.com") || domain.endsWith(".kgimg.com") ||
