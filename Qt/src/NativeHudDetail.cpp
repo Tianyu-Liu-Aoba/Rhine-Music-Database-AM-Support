@@ -44,7 +44,12 @@ QString NativeHud::body() const {
 
 void NativeHud::detail(double width, double opacity) {
     auto &music = *m_music;
-    const auto item = music.current;
+    auto item = music.current;
+    // 镜像曲目只存在于播放器里（不在资料库选中项中）：歌词页必须拿它当条目，
+    // 否则这里会掉进 archive() 兜底，看起来就像"按钮打开了首页"。
+    if (item.isEmpty() && music.player.current.value("mirror").toBool()) {
+        item = music.player.current;
+    }
     if (item.isEmpty()) {
         archive(width);
         return;
