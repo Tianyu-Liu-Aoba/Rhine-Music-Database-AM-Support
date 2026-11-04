@@ -113,6 +113,10 @@ void NativeHud::playerPanel(double x, double y, double width) {
     model.cover = player.coverImage;
     model.mode = player.mode;
     model.status = player.status;
+    // 队列为空时给出可操作的原因，而不是让用户面对一句通用文案。
+    if (model.tracks.isEmpty() && m_music->isApple()) {
+        model.hint = QStringLiteral("请打开 Apple Music 的迷你播放器，队列会自动同步到这里。");
+    }
     model.currentIndex = player.queue.indexOf(player.current);
     model.offset = queueOffset;
     model.playing = player.state["playing"].toBool();

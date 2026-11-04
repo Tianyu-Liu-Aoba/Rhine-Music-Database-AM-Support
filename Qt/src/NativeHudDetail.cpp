@@ -76,7 +76,10 @@ void NativeHud::detail(double width, double opacity) {
              dark ? QJsonArray{0.08, 0.095, 0.09, 0.96} : QJsonArray{0.973, 0.969, 0.933, 0.96});
     }
     button("← 返回资料库   ESC", 59, 211, 360, 54, "back", 20, "demibold");
-    limited(item["id"].toString(), 60, 845, 37, 330);
+    // 这行大字是条目标题位：镜像曲目没有目录 ID，显示专辑名（缺失时退回歌名）。
+    const auto headline = item["album"].toString().isEmpty() ? item["title"].toString()
+                                                             : item["album"].toString();
+    limited(headline, 60, 845, 37, 330);
     text("MUSIC DATABASE", 60, 893, 10);
     text("DRAG TO INSPECT", 60, 917, 10);
     button("查看封面 ↗", 60, 944, 260, 35, "viewer", 14);
