@@ -58,28 +58,24 @@ void NativeHud::detail(double width, double opacity) {
         container(width, opacity);
         return;
     }
-    // 遥控主页：只放大标题与艺人/专辑，并居中在右半区；歌词与大封面留到「词」页。
+    // 遥控主页：左对齐的大标题 + 艺人/专辑，整体下移一档；歌词与大封面留到「词」页。
     if (m_music->isApple() && !lyricsMode) {
         const auto left = width * 0.56;
         const auto usableWidth = width - left - 59;
-        const auto centerX = left + usableWidth / 2;
         save();
         alpha(opacity);
-        const auto title = item.value("title").toString();
+        text(QStringLiteral("NOW PLAYING / 正在播放"), left, 368, 12);
         const auto titleSize = 46.0 * (0.94 + 0.06 * opacity);
-        const auto titleWidth = std::min(usableWidth, m_glyphs->width(title, titleSize));
-        text(QStringLiteral("NOW PLAYING / 正在播放"), centerX - m_glyphs->width(QStringLiteral("NOW PLAYING / 正在播放"), 12) / 2, 300, 12);
-        limited(title, centerX - titleWidth / 2, 352, titleSize, usableWidth);
-        auto cursor = 412.0;
+        limited(item.value("title").toString(), left, 420, titleSize, usableWidth);
+        auto cursor = 480.0;
         const auto artist = item.value("artist").toString();
         if (!artist.isEmpty()) {
-            text(artist, centerX - m_glyphs->width(artist, 20) / 2, cursor, 20);
+            limited(artist, left, cursor, 20, usableWidth);
             cursor += 34;
         }
         const auto album = item.value("album").toString();
         if (!album.isEmpty()) {
-            limited(album, centerX - std::min(usableWidth, m_glyphs->width(album, 15)) / 2, cursor, 15,
-                    usableWidth);
+            limited(album, left, cursor, 15, usableWidth);
         }
         restore();
         return;

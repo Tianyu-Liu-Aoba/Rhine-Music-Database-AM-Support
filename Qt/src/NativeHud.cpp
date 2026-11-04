@@ -303,8 +303,13 @@ void NativeHud::archiveMask(double width) {
     restore();
 }
 void NativeHud::brand() {
-    roll("music-brand", m_music->isApple() ? QStringLiteral("正在播放") : m_music->libraryName(), 59,
-         115.425, 44, std::min(720.0, width * 0.45), "bold");
+    if (m_music->isApple()) {
+        // 遥控形态去掉「正在播放」大标题，把品牌字放大作为唯一标识。
+        text("RHINE LAB", 59, 110, 52, "bold", 1);
+        text("MUSIC DATABASE", 59, 168, 24, "demibold", 1.7);
+        return;
+    }
+    roll("music-brand", m_music->libraryName(), 59, 115.425, 44, std::min(720.0, width * 0.45), "bold");
     aligned("RHINE LAB / MUSIC DATABASE", 59, 173, 14, "demibold", 1);
 }
 void NativeHud::brandLine(int index) {
@@ -323,8 +328,8 @@ double NativeHud::navigationLeft(double width) {
 void NativeHud::navigation(double width) {
     const auto x = navigationLeft(width) + 210;
     if (m_music->isApple()) {
-        // 只做"当前播放"控制器：检索与推荐入口都去掉，选曲交给 Apple Music 应用。
-        control("打开 Apple Music ↗", x - 210, 118, 184, "music:open-apple");
+        // 两个入口并排靠右，整体降一档存在感。
+        control("打开 Apple Music ↗", x + 210, 118, 184, "music:open-apple");
         control(m_host->updater.available() ? "设置 · 更新" : "设置", x + 400, 118, 120, "settings");
         return;
     }
