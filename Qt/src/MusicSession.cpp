@@ -121,6 +121,10 @@ bool MusicLibrary::restoreSessionState(const QJsonObject &saved) {
         if (folder->item.value("id").toString().isEmpty()) {
             continue;
         }
+        // 镜像播放队列是运行时合成出来的，不该被持久化；旧版本存下的这类目录直接丢掉。
+        if (folder->item.value("key").toString() == QLatin1String("playback:queue")) {
+            continue;
+        }
         folder->songs = value["songs"].toArray();
         const auto sortField = value["sortField"].toString("none");
         if (QStringList{"none", "title", "album", "artist"}.contains(sortField)) {
