@@ -812,9 +812,14 @@ void MusicPlayer::syncMirrorTrack() {
                 lyrics.alignToLine(m_host->appleLyricLine(), position);
             }
         }
-        // 播放中主动触发重绘：进度条与时间跟着走，不用等下一次状态变化。
+        // 播放中以 2Hz 触发重绘：足够让进度条跟手，又不会让歌词滚动动画被反复打断。
         if (playing) {
-            emit changed();
+            static qint64 lastEmit = 0;
+            const auto stamp = QDateTime::currentMSecsSinceEpoch();
+            if (stamp - lastEmit > 500) {
+                lastEmit = stamp;
+                emit changed();
+            }
         }
     }
     if (state["playing"].toBool() && !mirroring) {
