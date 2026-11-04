@@ -325,9 +325,12 @@ void NativeHud::playerAction(const QStringList &parts) {
             }
             m_scene.mode("detail");
             frame["mode"] = "detail";
+            // 歌词模式是 HUD 内部状态，必须主动请求重绘，否则要等下一次输入才更新。
+            music.changed();
         }
     } else if (name == "lyrics-close") {
         lyricsMode = false;
+        music.changed();
     } else if (name == "lyrics-follow") {
         m_lyricsBrowse.reset();
     } else if (name == "lyrics-offset") {
