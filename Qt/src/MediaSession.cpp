@@ -17,7 +17,8 @@
 #endif
 
 namespace {
-constexpr int kPollMilliseconds = 500;
+// 采样间隔：歌词与进度都要跟手，250ms 与镜像节拍同档，系统开销可忽略。
+constexpr int kPollMilliseconds = 250;
 
 // Local diagnosis only: RHINE_MEDIA_SESSION_LOG=1 prints session changes to stderr.
 bool verbose() {

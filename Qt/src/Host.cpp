@@ -1236,7 +1236,7 @@ void Host::verifyMirrorCover(QString title, QString artist, QString album) {
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("RhineMusicDatabase/1.0"));
     request.setTransferTimeout(8000);
     auto *reply = lyricNet.get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, album, key] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, album, key, title, artist] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError || appleArtQuery != key) {
             return;
@@ -1247,26 +1247,48 @@ void Host::verifyMirrorCover(QString title, QString artist, QString album) {
             value.remove(noise);
             return value;
         };
-        const auto wantedAlbum = normalize(album);
+        static const QRegularExpression version(QStringLiteral("[\\(（\\[].*?[\\)）\\]]"));
+        const auto core = [](QString value) {
+            value.remove(version);
+            return value.simplified();
+        };
+        // 用「标题 + 艺人」匹配：Apple 的专辑名经常是罗马音或英文，按专辑名筛几乎必然落空。
+        const auto wantedTitle = normalize(title);
+        const auto wantedCore = normalize(core(title));
+        const auto wantedArtist = normalize(artist);
         const auto results = QJsonDocument::fromJson(reply->readAll()).object()
                                  .value("results")
                                  .toArray();
         QString artwork;
+        int bestScore = 0;
         for (const auto &value : results) {
             const auto entry = value.toObject();
-            const auto candidateAlbum = normalize(entry.value("collectionName").toString());
-            if (wantedAlbum.isEmpty() || candidateAlbum != wantedAlbum) {
-                continue;
+            const auto candidateTitle = normalize(entry.value("trackName").toString());
+            const auto candidateCore = normalize(core(entry.value("trackName").toString()));
+            const auto candidateArtist = normalize(entry.value("artistName").toString());
+            auto score = 0;
+            if (candidateTitle == wantedTitle) {
+                score += 4;
+            } else if (!candidateCore.isEmpty() && !wantedCore.isEmpty() &&
+                       (candidateCore.contains(wantedCore) || wantedCore.contains(candidateCore))) {
+                score += 2;
             }
-            artwork = entry.value("artworkUrl100").toString();
-            break;
+            if (!wantedArtist.isEmpty() && !candidateArtist.isEmpty() &&
+                (candidateArtist.contains(wantedArtist) || wantedArtist.contains(candidateArtist))) {
+                score += 3;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                artwork = entry.value("artworkUrl100").toString();
+            }
         }
-        if (artwork.isEmpty()) {
+        // 至少要"标题相符"或"标题相近 + 艺人相符"，否则宁可不用 Apple 的封面。
+        if (artwork.isEmpty() || bestScore < 4) {
             return;
         }
         // 目录给的是 100×100 占位地址，替换尺寸即可拿到大图。
         static const QRegularExpression size(QStringLiteral("/\\d+x\\d+bb\\."));
-        artwork.replace(size, QStringLiteral("/3000x3000bb."));
+        artwork.replace(size, QStringLiteral("/600x600bb."));
         QNetworkRequest artRequest{QUrl(artwork)};
         artRequest.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("RhineMusicDatabase/1.0"));
         artRequest.setTransferTimeout(10000);
@@ -1389,6 +1411,12 @@ QJsonArray Host::appleQueue() {
         appleQueueReader->refresh();
     }
     return appleQueueReader->items();
+}
+QString Host::appleLyricLine() {
+    if (!appleQueueReader || provider != "apple") {
+        return {};
+    }
+    return appleQueueReader->lyricLine();
 }
 /** 「Playing Next」第一条就是下一首，所以目标是 index 时要按 index + 1 次。 */
 bool Host::appleQueueJump(int index) {

@@ -165,9 +165,9 @@ void MusicPlayer::setQuality(const QString &value) {
 MusicPlayer::MusicPlayer(Host *host, MusicApi *api, QObject *parent)
     : QObject(parent), lyrics(host), queue(api), m_host(host), m_api(api) {
     state = {{"playing", false}, {"position", 0}, {"duration", 0}, {"volume", 0.7}, {"seekable", false}};
-    // 每 250ms 对齐一次系统会话：换歌感知更快，歌词逐行高亮也更贴近实际。
+    // 每 150ms 对齐一次系统会话：换歌感知更快，歌词逐行高亮与进度条更贴近实际。
     auto *mirrorTimer = new QTimer(this);
-    mirrorTimer->setInterval(250);
+    mirrorTimer->setInterval(150);
     connect(mirrorTimer, &QTimer::timeout, this, &MusicPlayer::syncMirrorTrack);
     mirrorTimer->start();
     connect(&queue, &PlaybackQueue::changed, this, &MusicPlayer::changed);
@@ -803,6 +803,26 @@ void MusicPlayer::syncMirrorTrack() {
         state["seekable"] = true;
         m_mirrorPosition = position;
         lyrics.sync(position);
+        // 闭环校准默认关闭：实测在副歌重复的曲目上仍会跳行，先保证歌词稳定。
+        // 需要时用 RHINE_LYRIC_ALIGN=1 打开再评估。
+        static const bool alignEnabled = qEnvironmentVariableIsSet("RHINE_LYRIC_ALIGN");
+        if (playing && alignEnabled && !lyrics.document().isEmpty()) {
+            static qint64 lastAlign = 0;
+            const auto now = QDateTime::currentMSecsSinceEpoch();
+            if (now - lastAlign > 900) {
+                lastAlign = now;
+                lyrics.alignToLine(m_host->appleLyricLine(), position);
+            }
+        }
+        // 播放中以 2Hz 触发重绘：足够让进度条跟手，又不会让歌词滚动动画被反复打断。
+        if (playing) {
+            static qint64 lastEmit = 0;
+            const auto stamp = QDateTime::currentMSecsSinceEpoch();
+            if (stamp - lastEmit > 500) {
+                lastEmit = stamp;
+                emit changed();
+            }
+        }
     }
     if (state["playing"].toBool() && !mirroring) {
         return;
@@ -810,6 +830,8 @@ void MusicPlayer::syncMirrorTrack() {
     const auto artist = session.value("artist").toString();
     // Apple 会把日文标题转成罗马音：让 Host 用网易云反查原文与翻译歌词。
     m_host->resolveMirrorLyrics(title, artist, session.value("duration").toDouble());
+    // 封面以 Apple 目录为准：按标题 + 艺人严格匹配，匹配不到才退回会话自带封面。
+    m_host->verifyMirrorCover(title, artist, session.value("album").toString());
     // 用 Apple 播放器显示的播放时间做基准，自动校正歌词偏移。
     const auto reference = m_host->applePositionMs(state["position"].toDouble());
     const auto now = QDateTime::currentMSecsSinceEpoch();

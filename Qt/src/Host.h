@@ -48,14 +48,15 @@ class Host : public QObject {
     Q_INVOKABLE void mediaMetadata(QString title, QString artist, QString album);
     // Apple Music 模式下的系统会话镜像：只读快照、封面 key 与传输控制。
     Q_INVOKABLE QJsonObject mediaSessionState() const;
-    Q_INVOKABLE QString mediaSessionCoverKey();
-    // 用 Apple 目录核对专辑名，命中则改用 3000px 高清封面。
+    Q_INVOKABLE QString mediaSessionCoverKey();    // 用 Apple 目录核对专辑名，命中则改用 3000px 高清封面。
     Q_INVOKABLE void verifyMirrorCover(QString title, QString artist, QString album);
     Q_INVOKABLE void mediaSessionControl(QString action, double value = 0);
     // Apple Music 队列：UIA 只读镜像，跳转用「下一首」连按实现。
     Q_INVOKABLE QJsonArray appleQueue();
     Q_INVOKABLE double applePositionMs(double expected = -1);
     Q_INVOKABLE void invalidateAppleQueue();
+    // Apple 歌词面板当前高亮行；用于把我们自己的歌词对齐到 Apple 的显示。
+    Q_INVOKABLE QString appleLyricLine();
     Q_INVOKABLE bool appleQueueJump(int index);
     // Apple 常把日文标题改成罗马音：用网易云公共搜索反查原文，并取带翻译的歌词。
     Q_INVOKABLE void resolveMirrorLyrics(QString title, QString artist, double durationMs = 0);

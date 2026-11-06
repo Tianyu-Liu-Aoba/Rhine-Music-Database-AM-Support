@@ -135,6 +135,7 @@ void LyricsController::clear() {
         return;
     }
     ++m_generation;
+    m_alignCandidate = -1;
     currentKey.clear();
     m_document = {};
     m_starts.clear();
@@ -508,6 +509,61 @@ void LyricsController::sync(double position) {
         index = next;
         emit changed();
     }
+}
+
+void LyricsController::alignToLine(const QString &text, double position) {
+    if (!m_mirrorMode || text.isEmpty() || m_document.isEmpty()) {
+        return;
+    }
+    static const QRegularExpression noise(QStringLiteral("[\\s\\p{P}]"));
+    const auto normalize = [](QString value) {
+        value = value.toLower();
+        value.remove(noise);
+        return value;
+    };
+    const auto wanted = normalize(text);
+    if (wanted.size() < 4) {
+        return;
+    }
+    const auto lines = m_document.value("lines").toArray();
+    // 副歌会把同一句重复多次：取"时间上最接近当前进度"的那一行，而不是第一个匹配。
+    const auto effective = position + m_document.value("offsetMs").toDouble() + offsetMs;
+    int matched = -1;
+    double bestDistance = 1e18;
+    for (int i = 0; i < lines.size(); ++i) {
+        const auto candidate = normalize(lines.at(i).toObject().value("text").toString());
+        if (candidate.isEmpty()) {
+            continue;
+        }
+        // 两边可能一边长一边短（Apple 会分行），取包含关系即可。
+        if (candidate != wanted && !candidate.contains(wanted) && !wanted.contains(candidate)) {
+            continue;
+        }
+        const auto distance =
+            std::abs(lines.at(i).toObject().value("startMs").toDouble() - effective);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            matched = i;
+        }
+    }
+    if (matched < 0) {
+        return;
+    }
+    // 连续两次指向同一行才生效：单次误读不会让歌词跳开。
+    if (matched != m_alignCandidate) {
+        m_alignCandidate = matched;
+        return;
+    }
+    const auto target = lines.at(matched).toObject().value("startMs").toDouble() - position;
+    const auto delta = std::clamp(target - (m_document.value("offsetMs").toDouble() + offsetMs), -1200.0,
+                                  1200.0);
+    // 死区 500ms：本来就大致对齐时不做修正，避免来回拉扯。
+    if (std::abs(delta) < 500 || std::abs(offsetMs + delta) > 4000) {
+        return;
+    }
+    offsetMs = std::clamp(offsetMs + delta, -4000., 4000.);
+    sync(position);
+    emit changed();
 }
 
 void LyricsController::adjustOffset(double deltaMs) {
